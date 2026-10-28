@@ -1,0 +1,94 @@
+# NetProof lab. Build the image first: docker build -t netproof-node:0.1 lab
+name: netproof
+
+x-node: &node
+  image: netproof-node:0.1
+  pull_policy: never
+  init: true
+  cap_add: [NET_ADMIN, NET_RAW]
+  restart: "no"
+
+x-router-sysctls: &router_sysctls
+  net.ipv4.ip_forward: "1"
+  net.ipv4.conf.all.rp_filter: "0"
+  net.ipv4.conf.default.rp_filter: "0"
+
+services:
+  pc-staff:
+    <<: *node
+    container_name: np-pc-staff
+    hostname: pc-staff
+    networks:
+      staff: {ipv4_address: 10.10.1.10}
+  pc-guest:
+    <<: *node
+    container_name: np-pc-guest
+    hostname: pc-guest
+    networks:
+      guest: {ipv4_address: 10.10.2.10}
+  fileserver:
+    <<: *node
+    container_name: np-fileserver
+    hostname: fileserver
+    networks:
+      server: {ipv4_address: 10.10.3.10}
+  webserver:
+    <<: *node
+    container_name: np-webserver
+    hostname: webserver
+    networks:
+      server: {ipv4_address: 10.10.3.20}
+  r-edge:
+    <<: *node
+    container_name: np-r-edge
+    hostname: r-edge
+    sysctls: *router_sysctls
+    networks:
+      staff: {ipv4_address: 10.10.1.1}
+      guest: {ipv4_address: 10.10.2.1}
+      transit: {ipv4_address: 10.10.9.1}
+  r-core:
+    <<: *node
+    container_name: np-r-core
+    hostname: r-core
+    sysctls: *router_sysctls
+    networks:
+      transit: {ipv4_address: 10.10.9.2}
+      server: {ipv4_address: 10.10.3.1}
+
+# Plain bridges with masquerade off. Not "internal: true": Docker's isolation
+# rules for internal networks drop routed packets whose destination is outside
+# the subnet, which breaks router-to-router forwarding.
+# gateway_mode_ipv4 "nat-unprotected" (Docker Engine 28+) stops Docker adding
+# raw-table rules that drop packets addressed to a container from another bridge;
+# those rules would also drop traffic our lab routers forward between subnets.
+# Gateways are .254 so that .1 is free for the lab routers.
+networks:
+  staff:
+    name: np_staff
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.gateway_mode_ipv4: "nat-unprotected"
+    ipam: {config: [{subnet: 10.10.1.0/24, gateway: 10.10.1.254}]}
+  guest:
+    name: np_guest
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.gateway_mode_ipv4: "nat-unprotected"
+    ipam: {config: [{subnet: 10.10.2.0/24, gateway: 10.10.2.254}]}
+  server:
+    name: np_server
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.gateway_mode_ipv4: "nat-unprotected"
+    ipam: {config: [{subnet: 10.10.3.0/24, gateway: 10.10.3.254}]}
+  transit:
+    name: np_transit
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.gateway_mode_ipv4: "nat-unprotected"
+    ipam: {config: [{subnet: 10.10.9.0/24, gateway: 10.10.9.254}]}

@@ -1,0 +1,46 @@
+# NetProof lab topology "branch". Single source of truth for addressing,
+# routing and firewall baseline. Docker Compose must use the same addresses.
+name: branch
+listen_ports: [80, 445, 8080]
+networks:
+  staff:   {docker_name: np_staff,   subnet: 10.10.1.0/24, bridge_ip: 10.10.1.254}
+  guest:   {docker_name: np_guest,   subnet: 10.10.2.0/24, bridge_ip: 10.10.2.254}
+  server:  {docker_name: np_server,  subnet: 10.10.3.0/24, bridge_ip: 10.10.3.254}
+  transit: {docker_name: np_transit, subnet: 10.10.9.0/24, bridge_ip: 10.10.9.254}
+nodes:
+  pc-staff:
+    role: host
+    interfaces: {staff: 10.10.1.10}
+    gateway: 10.10.1.1
+  pc-guest:
+    role: host
+    interfaces: {guest: 10.10.2.10}
+    gateway: 10.10.2.1
+  fileserver:
+    role: host
+    interfaces: {server: 10.10.3.10}
+    gateway: 10.10.3.1
+  webserver:
+    role: host
+    interfaces: {server: 10.10.3.20}
+    gateway: 10.10.3.1
+  r-edge:
+    role: router
+    interfaces: {staff: 10.10.1.1, guest: 10.10.2.1, transit: 10.10.9.1}
+    routes:
+      - {prefix: 10.10.3.0/24, via: 10.10.9.2}
+    forward_policy: ACCEPT
+    firewall:
+      - "-A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
+      - "-A FORWARD -s 10.10.2.0/24 -d 10.10.1.0/24 -j DROP"
+  r-core:
+    role: router
+    interfaces: {transit: 10.10.9.2, server: 10.10.3.1}
+    routes:
+      - {prefix: 10.10.1.0/24, via: 10.10.9.1}
+      - {prefix: 10.10.2.0/24, via: 10.10.9.1}
+    forward_policy: DROP
+    firewall:
+      - "-A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
+      - "-A FORWARD -s 10.10.1.0/24 -d 10.10.3.0/24 -j ACCEPT"
+      - "-A FORWARD -s 10.10.2.0/24 -d 10.10.3.20/32 -p tcp --dport 80 -j ACCEPT"
