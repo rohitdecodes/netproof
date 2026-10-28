@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 1 (MVP and feasibility validation), early start |
+| Status | Phase 1 complete (28 Oct 2026), decision Go with conditions. Phase 2 next |
 | Document version | 0.1, written 27 Oct 2026 |
 | Name | "NetProof" is a working title. Not checked for trademark or domain conflicts [A] |
 | Primary goal right now | Win a top-5 placement in the Indie Developer track of the Meta Global AI Developer Hackathon (submission due 4 Nov 2026) |
@@ -635,6 +635,11 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 27 Oct | **Correction:** earlier note said Muse Spark rate limit was 100 requests/min | Misattributed the Contributor-tier limit | Meta pricing page: Standard 3,000 RPM, 4M TPM per team; Contributor tier lower and lets Meta use prompts | Standard tier only, throttling less constrained |
 | 27 Oct | Claim narrowed after prior-art review (NIKA, FaulT-Bench, SADE, NetArena) | Diagnosis benchmarks already exist | arXiv papers | Contribution defined as verified remediation plus collateral damage |
 | 27 Oct | Developer reported the initial feasibility spike working. Specific results not yet recorded | Developer message | None recorded yet | Record outcomes in Phase 1 notes |
+| 28 Oct | Phase 1 refinements adopted: run records as JSON files in `runs/` (SQLite moves to Phase 2); `capture_packets` tool moved to Phase 2; fourth fault class is "interface down" instead of "address misconfiguration"; commit rule is zero regressions plus strictly more flows matching intent; lab networks are plain bridges with masquerade off and `gateway_mode_ipv4: nat-unprotected`, not `internal` networks | Plan review and lab behavior on Docker Engine 29 | `docs/phase1-plan.md`, `docs/phase1-notes.md` | Architecture details in sections 7 and 9 are superseded where they differ |
+| 28 Oct | Development runs on native Windows Python plus Docker Desktop, not inside a WSL Ubuntu distro | No Ubuntu distro installed; Docker Desktop works from Windows directly | `docs/phase1-notes.md` (Environment) | Docker stdin sent as bytes to avoid CRLF; all lab code unchanged otherwise |
+| 28 Oct | Gate rule added: deleting the default route is rejected | Plan's gate allowed `ip route del default`, which section 11.1 V2 lists as dangerous | `tests/test_gate.py`, 27 dangerous / 13 safe cases | System prompt bumped to `p1.1` |
+| 28 Oct | Paid evaluation trimmed to 12 runs (each variant once) with `reasoning_effort=low`, instead of 60 runs | Limited credits. Spark 1.1 to 1.3 share one Standard price, so no cheaper allowed model exists | `runs/eval-20261028-213047-llm/summary.json` | No repeat spread yet. Repeats move to the Phase 3 held-out benchmark |
+| 28 Oct | **Phase 1 decision: Go, with conditions.** V1 to V6 met: reset max 3.1 s and 20/20 injections; gate 27/27 and 13/13; bad fixes 9/9 rolled back; Muse Spark 1.3 fixed 12/12 with correct diagnosis at median $0.023 per run. The scripted baseline also fixed 20/20 | Measured | `docs/phase1-notes.md`, `docs/phase1-summary.md` | Phase 2 must add harder fault classes until the baseline is below about 80%, before any claim that the model adds value |
 
 ---
 
@@ -720,14 +725,14 @@ Secondary (treat as reported, verify before relying):
 
 | Phase | Major deliverable / task | Expected outcome / verification criteria | Status |
 |---|---|---|---|
-| Phase 1 | Feasibility spike: Meta API tool call and Docker lab with injectable fault | Tool-call round trip works. Lab boots, a fault breaks a flow, heal restores it, reset about 15 s or less | Reported working by developer, results not yet recorded |
-| Phase 1 | New public repository with first commit inside the event window | History starts on or after 27 Oct 2026 | Not Started |
-| Phase 1 | Intent spec and invariant verifier | V3 passed: seeded bad fixes detected 100% | Not Started |
-| Phase 1 | Policy gate with unit tests | V2 passed: at least 15 dangerous plans rejected, no false rejections on at least 10 safe plans | Not Started |
-| Phase 1 | Executor with snapshot, apply, confirm, rollback | Rollback restores identical state on failure | Not Started |
-| Phase 1 | Agent loop on Muse Spark 1.3 with read-only tools | V4 passed on development seeds: at least 60% `FIXED_VERIFIED` across four fault classes | Not Started |
-| Phase 1 | Scripted non-AI baseline | V5 measured and recorded | Not Started |
-| Phase 1 | Go / narrow / change decision recorded in the change log | Written decision with evidence | Not Started |
+| Phase 1 | Feasibility spike: Meta API tool call and Docker lab with injectable fault | Tool-call round trip works. Lab boots, a fault breaks a flow, heal restores it, reset about 15 s or less | Done: tool calling yes, reset max 3.1 s |
+| Phase 1 | New public repository with first commit inside the event window | History starts on or after 27 Oct 2026 | Done: first commit 28 Oct 2026 |
+| Phase 1 | Intent spec and invariant verifier | V3 passed: seeded bad fixes detected 100% | Done: 9/9 |
+| Phase 1 | Policy gate with unit tests | V2 passed: at least 15 dangerous plans rejected, no false rejections on at least 10 safe plans | Done: 27/27 and 13/13 |
+| Phase 1 | Executor with snapshot, apply, confirm, rollback | Rollback restores identical state on failure | Done |
+| Phase 1 | Agent loop on Muse Spark 1.3 with read-only tools | V4 passed on development seeds: at least 60% `FIXED_VERIFIED` across four fault classes | Done: 12/12, single repeat |
+| Phase 1 | Scripted non-AI baseline | V5 measured and recorded | Done: 20/20, faults too easy |
+| Phase 1 | Go / narrow / change decision recorded in the change log | Written decision with evidence | Done: Go with conditions |
 | Phase 2 | Fault library expanded and post-injection checks | At least six fault classes, injection verified in each run | Not Started |
 | Phase 2 | Provider layer (Meta, Baseten, Modal-served Glimmer) | Same agent code runs against each backend that is included | Not Started |
 | Phase 2 | Evaluation runner and scoreboard | Seeded runs, repeats, metrics stored, scoreboard produced for at least two models | Not Started |
