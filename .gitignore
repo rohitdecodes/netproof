@@ -1,0 +1,15 @@
+# secrets
+.env
+*.key
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# run outputs (summaries are copied into docs/ by hand)
+runs/
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

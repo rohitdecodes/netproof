@@ -1,0 +1,12 @@
+#!/bin/sh
+# Blocks commits that include .env or a filled-in API key.
+# The hook directory is excluded from the key scan, because this file contains the pattern itself.
+if git diff --cached --name-only | grep -qE '(^|/)\.env$'; then
+  echo "pre-commit: refusing to commit .env" >&2
+  exit 1
+fi
+if git diff --cached -U0 -- . ':(exclude).githooks' | grep -qE '^\+.*MODEL_API_KEY=[^[:space:]]+'; then
+  echo "pre-commit: a filled-in MODEL_API_KEY is staged; remove it" >&2
+  exit 1
+fi
+exit 0
