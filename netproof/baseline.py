@@ -8,7 +8,7 @@ from __future__ import annotations
 import ipaddress
 import shlex
 import time
-from typing import List
+from typing import Callable, List, Optional
 
 from .executor import Executor
 from .faults import Scenario
@@ -19,7 +19,8 @@ from .topology import Topology
 
 
 class BaselineRunner:
-    def __init__(self, lab, topo: Topology, flows: List[Flow], scenario: Scenario, gate_ctx: GateContext):
+    def __init__(self, lab, topo: Topology, flows: List[Flow], scenario: Scenario, gate_ctx: GateContext,
+                 emit: Optional[Callable[[str, dict], None]] = None):
         self.lab = lab
         self.topo = topo
         self.flows = {f.id: f for f in flows}
@@ -28,14 +29,18 @@ class BaselineRunner:
         self.ctx = gate_ctx
         self.executor = Executor(lab, flows)
         self.plans: List[dict] = []
+        self.emit = emit or (lambda _t, _d: None)
 
     def _try(self, device: str, commands: List[str], why: str) -> bool:
         if not commands:
             return False
         plan = ChangePlan(device=device, commands=commands, rationale=why,
                           expected_effect="restore reported flow", rollback=["(snapshot restore)"])
+        index = len(self.plans)
+        self.emit("plan_submitted", {"index": index, "step": index + 1, "plan": plan.model_dump(), "root_cause": None})
         res = self.executor.execute(plan, self.ctx)
-        self.plans.append({"index": len(self.plans), "plan": plan.model_dump(), "root_cause": None,
+        self.emit("plan_result", {"index": index, **res.to_dict()})
+        self.plans.append({"index": index, "plan": plan.model_dump(), "root_cause": None,
                            "result": res.to_dict()})
         return res.healthy_after
 

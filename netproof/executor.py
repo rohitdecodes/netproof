@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .gate import GateContext, check_plan
 from .intent import Flow, Results, compare, evaluate, failing, is_healthy
@@ -33,6 +33,7 @@ class PlanResult:
     healthy_after: bool = False
     restored_ok: Optional[bool] = None
     restore_errors: List[str] = field(default_factory=list)
+    flows_now: Dict[str, bool] = field(default_factory=dict)  # flow id -> matches intent, after commit/rollback
     seconds: float = 0.0
 
     def to_dict(self) -> dict:
@@ -95,11 +96,14 @@ class Executor:
         if cmp.has_regressions:
             result.outcome = PlanOutcome.ROLLED_BACK_COLLATERAL
             self._restore(plan.device, snap, result)
+            result.flows_now = {fid: r.ok for fid, r in before.items()}
         elif result.apply_errors or not cmp.improvements:
             result.outcome = PlanOutcome.ROLLED_BACK_NO_EFFECT
             self._restore(plan.device, snap, result)
             result.still_failing = [r.flow.id for r in failing(before)]
+            result.flows_now = {fid: r.ok for fid, r in before.items()}
         else:
             result.healthy_after = is_healthy(after)
+            result.flows_now = {fid: r.ok for fid, r in after.items()}
         result.seconds = time.monotonic() - t0
         return result

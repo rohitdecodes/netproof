@@ -13,7 +13,7 @@ class LLMError(RuntimeError):
 class LLMClient:
     def __init__(self, settings: Settings):
         if not settings.api_key:
-            raise LLMError("MODEL_API_KEY is not set. Put it in .env (see .env.example).")
+            raise LLMError(f"{settings.key_env} is not set (profile {settings.profile}). Put it in .env.")
         from openai import OpenAI
 
         self.settings = settings
