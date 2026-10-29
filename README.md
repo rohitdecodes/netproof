@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 1 complete (28 Oct 2026), decision Go with conditions. Phase 2 next |
+| Status | Phase 1 complete (28 Oct 2026), decision Go with conditions. Phase 2 in progress (plan: `docs/phase_2.md`) |
 | Document version | 0.1, written 27 Oct 2026 |
 | Name | "NetProof" is a working title. Not checked for trademark or domain conflicts [A] |
 | Primary goal right now | Win a top-5 placement in the Indie Developer track of the Meta Global AI Developer Hackathon (submission due 4 Nov 2026) |
@@ -571,6 +571,8 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 - Small topologies and a fault catalog written by the developer.
 - Single-machine lab. No concurrency at scale.
 - The human reference timing is one person.
+- Phase 1 model results (12/12) were on faults a scripted runbook also solves (20/20); they show the pipeline works, not that the model adds value.
+- A plan changes one device. Incidents where two devices must change together before any flow improves cannot be fixed under the commit rule; multi-device scenarios are limited to causes that each improve something on their own.
 - Real networks have state, timing and traffic patterns that a short test matrix does not cover.
 
 ### 15.3 Open unknowns to resolve early
@@ -640,6 +642,9 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 28 Oct | Gate rule added: deleting the default route is rejected | Plan's gate allowed `ip route del default`, which section 11.1 V2 lists as dangerous | `tests/test_gate.py`, 27 dangerous / 13 safe cases | System prompt bumped to `p1.1` |
 | 28 Oct | Paid evaluation trimmed to 12 runs (each variant once) with `reasoning_effort=low`, instead of 60 runs | Limited credits. Spark 1.1 to 1.3 share one Standard price, so no cheaper allowed model exists | `runs/eval-20261028-213047-llm/summary.json` | No repeat spread yet. Repeats move to the Phase 3 held-out benchmark |
 | 28 Oct | **Phase 1 decision: Go, with conditions.** V1 to V6 met: reset max 3.1 s and 20/20 injections; gate 27/27 and 13/13; bad fixes 9/9 rolled back; Muse Spark 1.3 fixed 12/12 with correct diagnosis at median $0.023 per run. The scripted baseline also fixed 20/20 | Measured | `docs/phase1-notes.md`, `docs/phase1-summary.md` | Phase 2 must add harder fault classes until the baseline is below about 80%, before any claim that the model adds value |
+| 29 Oct | Phase 2 scope: 5 new scenario classes, residual (minimality) metric, model profiles, SQLite store, Markdown reports, dashboard using polling (not WebSocket) and hand-drawn SVG (not Cytoscape) | Phase 1 condition 1, and fewer moving parts | `docs/phase_2.md` | Phase 2 in progress |
+| 29 Oct | Lab hosts run with ip_forward=0; intent gains two 64 KB bulk flows (13 flows) | Wrong next-hop faults must black-hole; MTU faults need a bulk test | `lab/docker-compose.yml`, `lab/intent.yaml` | Lab containers recreated |
+| 29 Oct | Human reference timing moved from Phase 1 to Phase 2, on three of the new fault classes | Timing easy faults would only show they are easy | `docs/phase_2.md` Step 6 | Recorded in `docs/phase2-notes.md` |
 
 ---
 
