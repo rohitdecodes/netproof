@@ -35,18 +35,23 @@ def tool_schemas(topo: Topology) -> List[dict]:
         "blast_radius": {"type": "string"},
     }
     return [
-        _fn("ping", "Ping a target from a device (3 packets).", {"src": dev, "dst": target}, ["src", "dst"]),
+        _fn("ping", "Ping a target from a device (3 packets). Optional size sends larger packets with "
+            "the don't-fragment bit set, to test path MTU.",
+            {"src": dev, "dst": target,
+             "size": {"type": "integer", "description": "payload bytes, 56 to 1472 (optional)"}},
+            ["src", "dst"]),
         _fn("traceroute", "Trace the route from a device to a target.", {"src": dev, "dst": target},
             ["src", "dst"]),
         _fn("show_routes", "Show the routing table of a device.", {"device": dev}, ["device"]),
-        _fn("show_addresses", "Show interfaces, link state and IPv4 addresses of a device.",
+        _fn("show_addresses", "Show interfaces with link state and MTU, and IPv4 addresses of a device.",
             {"device": dev}, ["device"]),
         _fn("show_firewall", "Show iptables filter rules with packet counters on a device.",
             {"device": dev}, ["device"]),
         _fn("show_neighbors", "Show the ARP/neighbor table of a device.", {"device": dev}, ["device"]),
-        _fn("test_flow", "Test whether a TCP port or ICMP is reachable from a device to a target.",
-            {"src": dev, "dst": target, "proto": {"type": "string", "enum": ["tcp", "icmp"]},
-             "port": {"type": "integer", "description": "required for tcp"}},
+        _fn("test_flow", "Test reachability from a device to a target. tcp = connect only; "
+            "tcp-bulk = connect and send 64 KB (detects MTU problems); icmp = one ping.",
+            {"src": dev, "dst": target, "proto": {"type": "string", "enum": ["tcp", "tcp-bulk", "icmp"]},
+             "port": {"type": "integer", "description": "required for tcp and tcp-bulk"}},
             ["src", "dst", "proto"]),
         _fn("note_hypothesis", "Record a hypothesis and the evidence for and against it.",
             {"hypothesis": {"type": "string"}, "evidence_for": {"type": "string"},
@@ -115,7 +120,13 @@ class ToolBox:
 
     def _ping(self, a: dict) -> str:
         ip = self.topo.resolve(a["dst"])
-        return self._run(a["src"], ["ping", "-c", "3", "-i", "0.2", "-W", "1", ip])
+        argv = ["ping", "-c", "3", "-i", "0.2", "-W", "1"]
+        if a.get("size") is not None:
+            size = int(a["size"])
+            if not 56 <= size <= 1472:
+                return "ERROR: size must be between 56 and 1472"
+            argv += ["-s", str(size), "-M", "do"]
+        return self._run(a["src"], argv + [ip])
 
     def _traceroute(self, a: dict) -> str:
         ip = self.topo.resolve(a["dst"])
@@ -123,9 +134,9 @@ class ToolBox:
 
     def _addresses(self, a: dict) -> str:
         d = a["device"]
-        links = self.lab.exec(d, ["ip", "-br", "link", "show"]).text()
+        links = self.lab.exec(d, ["ip", "-o", "link", "show"]).text()
         addrs = self.lab.exec(d, ["ip", "-br", "-4", "addr", "show"]).text()
-        return wrap(d, "ip -br link; ip -br -4 addr", links + "\n\n" + addrs)
+        return wrap(d, "ip -o link; ip -br -4 addr", links + "\n\n" + addrs)
 
     def _firewall(self, a: dict) -> str:
         d = a["device"]
@@ -135,8 +146,8 @@ class ToolBox:
 
     def _test_flow(self, a: dict) -> str:
         proto = a["proto"]
-        if proto == "tcp" and not a.get("port"):
-            return "ERROR: port is required for tcp"
+        if proto in ("tcp", "tcp-bulk") and not a.get("port"):
+            return f"ERROR: port is required for {proto}"
         flow = Flow("adhoc", a["src"], a["dst"], proto, a.get("port"), "allow")
         if a["dst"] not in self.topo.nodes:
             self.topo.resolve(a["dst"])  # validates the address

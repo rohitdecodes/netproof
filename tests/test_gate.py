@@ -45,6 +45,10 @@ DANGEROUS = [
     ("no rollback", plan(["ip route replace 10.10.1.0/24 via 10.10.9.1"], rollback=())),
     ("delete default route", plan(["ip route del default"], device="pc-staff")),
     ("delete 0.0.0.0/0", plan(["ip route delete 0.0.0.0/0"], device="pc-staff")),
+    ("mtu too small", plan(["ip link set eth1 mtu 68"])),
+    ("mtu too large", plan(["ip link set eth1 mtu 70000"])),
+    ("mtu then down", plan(["ip link set eth1 mtu 1500 down"])),
+    ("rename interface", plan(["ip link set eth1 name evil0"])),
 ]
 
 SAFE = [
@@ -63,6 +67,8 @@ SAFE = [
     ("add a drop", plan(["iptables -I FORWARD 2 -s 10.10.2.0/24 -d 10.10.3.10 -j DROP"])),
     ("ip forwarding on", plan(["sysctl -w net.ipv4.ip_forward=1"])),
     ("address add", plan(["ip addr add 10.10.3.1/24 dev eth1"])),
+    ("restore mtu", plan(["ip link set eth1 mtu 1500"])),
+    ("restore mtu and bring up", plan(["ip link set dev eth2 mtu 1500 up"], device="r-edge")),
 ]
 
 

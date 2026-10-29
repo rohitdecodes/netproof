@@ -23,6 +23,7 @@ IPTABLES_FORBIDDEN = {
 }
 MIN_ACCEPT_PREFIX = 16  # ACCEPT rules must name source and destination no broader than /16
 MIN_ROUTE_PREFIX = 8
+MIN_MTU, MAX_MTU = 1280, 9000
 
 
 @dataclass
@@ -102,17 +103,27 @@ def _check_ip_route(tok: List[str], device: str, ctx: GateContext) -> List[str]:
 
 
 def _check_ip_link(tok: List[str], device: str, ctx: GateContext) -> List[str]:
+    """Allowed: ip link set [dev] <iface> up | mtu <n> [up]."""
+    usage = f"ip link: only 'ip link set <iface> up' or 'ip link set <iface> mtu <{MIN_MTU}-{MAX_MTU}> [up]'"
     args = tok[2:]
     if args[:1] != ["set"]:
-        return ["ip link: only 'ip link set <iface> up' is allowed"]
+        return [usage]
     args = args[1:]
     if args[:1] == ["dev"]:
         args = args[1:]
-    if len(args) != 2 or args[1] != "up":
-        return ["ip link: only 'ip link set <iface> up' is allowed"]
-    if args[0] not in ctx.ifaces.get(device, set()):
-        return [f"ip link: interface {args[0]!r} does not exist on {device}"]
-    return []
+    if not args:
+        return [usage]
+    iface, rest = args[0], args[1:]
+    errs: List[str] = []
+    if iface not in ctx.ifaces.get(device, set()):
+        errs.append(f"ip link: interface {iface!r} does not exist on {device}")
+    if rest == ["up"]:
+        return errs
+    if len(rest) in (2, 3) and rest[0] == "mtu" and (len(rest) == 2 or rest[2] == "up"):
+        if not rest[1].isdigit() or not (MIN_MTU <= int(rest[1]) <= MAX_MTU):
+            errs.append(f"ip link: mtu must be a number from {MIN_MTU} to {MAX_MTU}")
+        return errs
+    return [usage]
 
 
 def _check_ip_addr(tok: List[str], device: str, ctx: GateContext) -> List[str]:
@@ -243,10 +254,20 @@ def check_plan(plan: ChangePlan, ctx: GateContext) -> GateVerdict:
     return GateVerdict(allowed=not v, violations=v)
 
 
-def build_context(topo, lab, scope_src: str, scope_dst: str) -> GateContext:
+def build_context(topo, lab, flows_or_src, dst: Optional[str] = None) -> GateContext:
+    """Scope = every device on the path of the given flows (usually the flows failing at the start).
+
+    The Phase 1 form build_context(topo, lab, src, dst) still works: scope = the src-dst path.
+    """
+    if dst is not None:
+        scope = topo.path_nodes(flows_or_src, dst)
+    else:
+        scope: Set[str] = set()
+        for f in flows_or_src:
+            scope |= topo.path_nodes(f.src, f.dst)
     return GateContext(
         devices=set(topo.nodes),
-        scope=topo.path_nodes(scope_src, scope_dst),
+        scope=scope,
         ifaces={n: set(lab.ifaces(n)) for n in topo.nodes},
         node_ips=topo.node_ips(),
     )
