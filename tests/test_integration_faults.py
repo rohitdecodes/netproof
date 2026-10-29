@@ -29,9 +29,9 @@ def test_each_variant_breaks_its_flow_and_reset_heals(env, fault, seed):
     topo, lab, flows = env
     sc = make_scenario(fault, seed)
     lab.reset()
-    for cmd in sc.inject:
-        r = lab.run_command(sc.device, lab.resolve_placeholders(sc.device, cmd))
-        assert r.ok, r.text()
+    for device, cmd in sc.injections:
+        r = lab.run_command(device, lab.resolve_placeholders(device, cmd))
+        assert r.ok, f"{device}: {cmd}: {r.text()}"
     res = evaluate(lab, flows)
     assert not res[sc.reported_flow].ok, f"{sc.variant}: fault did not break {sc.reported_flow}"
     lab.reset()

@@ -5,7 +5,9 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-FAULT_CLASS_CHOICES = ["route_missing", "wrong_gateway", "firewall_drop", "interface_down", "other"]
+from .faults import ROOT_CAUSE_CLASSES
+
+FAULT_CLASS_CHOICES = ROOT_CAUSE_CLASSES + ["other"]
 
 
 class ChangePlan(BaseModel):

@@ -103,16 +103,14 @@ def resolve(node, cmd):
 
 
 def test_catalog_fixes_and_bad_fixes_pass_the_gate():
-    """The verifier must be what catches bad fixes, so they must get past the gate."""
+    """The verifier must be what catches bad fixes, so every reference plan must get past the gate.
+    Scope is checked on the real lab by validate-verifier; here scope is every device."""
+    ctx = GateContext(devices=set(TOPO.nodes), scope=set(TOPO.nodes),
+                      ifaces={n: set(fake_ifmap(n).values()) for n in TOPO.nodes},
+                      node_ips=TOPO.node_ips())
     for variants in CATALOG.values():
         for v in variants:
-            flow = FLOWS[v.reported_flow]
-            ctx = GateContext(devices=set(TOPO.nodes), scope=TOPO.path_nodes(flow.src, flow.dst),
-                              ifaces={n: set(fake_ifmap(n).values()) for n in TOPO.nodes},
-                              node_ips=TOPO.node_ips())
-            for p in (v.fix, v.bad_fix):
-                if p is None:
-                    continue
-                d = dict(p, commands=[resolve(v.device, c) for c in p["commands"]])
+            for p in list(v.fixes) + ([v.bad_fix] if v.bad_fix else []):
+                d = dict(p, commands=[resolve(p["device"], c) for c in p["commands"]])
                 verdict = check_plan(ChangePlan(**d), ctx)
                 assert verdict.allowed, (v.key, verdict.violations)
