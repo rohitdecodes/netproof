@@ -5,7 +5,7 @@ const POS = {
   "pc-staff": [90, 80], "pc-guest": [90, 260], "r-edge": [320, 170],
   "r-core": [520, 170], "fileserver": [730, 80], "webserver": [730, 260],
 };
-const S = { topo: null, flows: [], catalog: {}, runId: null, after: 0, timer: null, planItems: {} };
+const S = { topo: null, flows: [], catalog: {}, runId: null, after: 0, timer: null, planItems: {}, changed: null };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -129,7 +129,7 @@ function applyEvent(ev) {
       highlightPath(d.reported_flow);
       break;
     case "flows": {
-      renderFlows(d.flows);
+      renderFlows(d.flows, d.stage === "final" ? S.changed : null);  // keep the last plan's highlight
       if (d.stage === "before") addItem("", "Fault injected", `<div class="muted">${Object.values(d.flows).filter((x) => !x).length} flows failing</div>`);
       break;
     }
@@ -158,7 +158,8 @@ function applyEvent(ev) {
       const dev = li ? li.querySelector(".head").textContent.split(" on ")[1] : null;
       if (dev) markNode(dev, NODE_CLASS[d.outcome]);
       if (d.flows_now && Object.keys(d.flows_now).length) {
-        renderFlows(d.flows_now, new Set([...(d.improvements || []), ...(d.regressions || [])]));
+        S.changed = new Set([...(d.improvements || []), ...(d.regressions || [])]);
+        renderFlows(d.flows_now, S.changed);
       }
       break;
     }
@@ -195,7 +196,7 @@ function showSummary(d) {
 // ---------------------------------------------------------------- run control
 function resetView() {
   clearInterval(S.timer);
-  S.after = 0; S.planItems = {};
+  S.after = 0; S.planItems = {}; S.changed = null;
   $("timeline").innerHTML = "";
   $("summary").hidden = true;
   drawTopology();

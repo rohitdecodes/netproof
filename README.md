@@ -645,6 +645,9 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 29 Oct | Phase 2 scope: 5 new scenario classes, residual (minimality) metric, model profiles, SQLite store, Markdown reports, dashboard using polling (not WebSocket) and hand-drawn SVG (not Cytoscape) | Phase 1 condition 1, and fewer moving parts | `docs/phase_2.md` | Phase 2 in progress |
 | 29 Oct | Lab hosts run with ip_forward=0; intent gains two 64 KB bulk flows (13 flows) | Wrong next-hop faults must black-hole; MTU faults need a bulk test | `lab/docker-compose.yml`, `lab/intent.yaml` | Lab containers recreated |
 | 29 Oct | Human reference timing moved from Phase 1 to Phase 2, on three of the new fault classes | Timing easy faults would only show they are easy | `docs/phase_2.md` Step 6 | Recorded in `docs/phase2-notes.md` |
+| 29 Oct | Phase 2 difficulty gate passed: scripted baseline 12/27 (0.444), 0/15 on the five new classes | Phase 1 condition 1 | `docs/phase2-notes.md`, eval-20261029-090307-baseline-difficulty | Benchmark separates model from runbook |
+| 29 Oct | Muse Spark 1.3 on the 27 dev variants: 27/27 fixed, clean fix 24/27, diagnosis 27/27, $0.886 total (dev seeds, one repeat, not for public quoting) | Phase 2 Step 10 | `docs/phase2-notes.md` | All 3 unclean fixes left half of a two-part MTU fault; Phase 3 prompt work |
+| 29 Oct | Dashboard checked 9/9 in headless Edge; two UI bugs fixed (changed-flow highlight lost at run end, scoreboard showing under the run view) | Phase 2 Step 8 | `docs/screenshots/`, `web/` | P2-V6 passes |
 
 ---
 
@@ -738,11 +741,11 @@ Secondary (treat as reported, verify before relying):
 | Phase 1 | Agent loop on Muse Spark 1.3 with read-only tools | V4 passed on development seeds: at least 60% `FIXED_VERIFIED` across four fault classes | Done: 12/12, single repeat |
 | Phase 1 | Scripted non-AI baseline | V5 measured and recorded | Done: 20/20, faults too easy |
 | Phase 1 | Go / narrow / change decision recorded in the change log | Written decision with evidence | Done: Go with conditions |
-| Phase 2 | Fault library expanded and post-injection checks | At least six fault classes, injection verified in each run | Not Started |
-| Phase 2 | Provider layer (Meta, Baseten, Modal-served Glimmer) | Same agent code runs against each backend that is included | Not Started |
-| Phase 2 | Evaluation runner and scoreboard | Seeded runs, repeats, metrics stored, scoreboard produced for at least two models | Not Started |
-| Phase 2 | Dashboard | Live topology, timeline, plan diff, gate verdict, verification table during a full run | Not Started |
-| Phase 2 | Incident report generator | Each run yields an evidence report | Not Started |
+| Phase 2 | Fault library expanded and post-injection checks | At least six fault classes, injection verified in each run | Done: 9 classes, 27 variants, 27/27 inject and heal |
+| Phase 2 | Provider layer (Meta, Baseten, Modal-served Glimmer) | Same agent code runs against each backend that is included | In progress: profiles in `models.yaml`; Meta done, Baseten and Modal not run yet |
+| Phase 2 | Evaluation runner and scoreboard | Seeded runs, repeats, metrics stored, scoreboard produced for at least two models | In progress: SQLite store and scoreboard work; baseline and Spark 1.3 rows done, second model pending |
+| Phase 2 | Dashboard | Live topology, timeline, plan diff, gate verdict, verification table during a full run | Done: 9/9 checklist items |
+| Phase 2 | Incident report generator | Each run yields an evidence report | Done: 64 reports for 64 runs |
 | Phase 3 | Held-out benchmark with repeats | Numbers recorded per model with versions and dates | Not Started |
 | Phase 3 | Local-first router | Escalation logic works and share solved locally is measured | Not Started |
 | Phase 3 | Topology-diagram input (stretch) | Only if all earlier items are done and stable | Not Started |
