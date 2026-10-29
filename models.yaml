@@ -20,7 +20,7 @@ profiles:
     base_url: https://inference.baseten.co/v1
     model: meta-models/muse-spark-open-1026
     key_env: BASETEN_API_KEY
-    price: {in: 0.0, cached: 0.0, out: 0.0}   # fill in from Baseten's pricing page before the eval
+    price: {in: 1.25, cached: 0.15, out: 4.25}   # Baseten pricing page snapshot, 23 Oct 2026
     reasoning_effort: null
   glimmer:
     # Self-served on Modal (Step 9). Replace YOUR-WORKSPACE after `modal deploy`.

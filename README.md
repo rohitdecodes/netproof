@@ -648,6 +648,9 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 29 Oct | Phase 2 difficulty gate passed: scripted baseline 12/27 (0.444), 0/15 on the five new classes | Phase 1 condition 1 | `docs/phase2-notes.md`, eval-20261029-090307-baseline-difficulty | Benchmark separates model from runbook |
 | 29 Oct | Muse Spark 1.3 on the 27 dev variants: 27/27 fixed, clean fix 24/27, diagnosis 27/27, $0.886 total (dev seeds, one repeat, not for public quoting) | Phase 2 Step 10 | `docs/phase2-notes.md` | All 3 unclean fixes left half of a two-part MTU fault; Phase 3 prompt work |
 | 29 Oct | Dashboard checked 9/9 in headless Edge; two UI bugs fixed (changed-flow highlight lost at run end, scoreboard showing under the run view) | Phase 2 Step 8 | `docs/screenshots/`, `web/` | P2-V6 passes |
+| 29 Oct | Second model: Muse Spark Open on Baseten (`meta-models/muse-spark-open-1026`): 27/27 fixed, clean fix 24/27, diagnosis 26/27, $0.425 total, median $0.0156 per run (dev seeds, not for public quoting) | Phase 2 Step 9 and 10 | `runs/` eval-20261029-171339-spark-open-p2 | Open-weights comparison covered |
+| 29 Oct | Muse Glimmer on Modal not attempted in Phase 2; human reference timing deferred | Developer decision under deadline | - | Glimmer optional in Phase 3; timing before the video |
+| 29 Oct | Phase planning docs (plans, notes, summaries) kept local: `docs/phase*.md` gitignored and untracked | Public repo holds only project files | `.gitignore` | Evidence links to those docs are local-only |
 
 ---
 
@@ -742,8 +745,8 @@ Secondary (treat as reported, verify before relying):
 | Phase 1 | Scripted non-AI baseline | V5 measured and recorded | Done: 20/20, faults too easy |
 | Phase 1 | Go / narrow / change decision recorded in the change log | Written decision with evidence | Done: Go with conditions |
 | Phase 2 | Fault library expanded and post-injection checks | At least six fault classes, injection verified in each run | Done: 9 classes, 27 variants, 27/27 inject and heal |
-| Phase 2 | Provider layer (Meta, Baseten, Modal-served Glimmer) | Same agent code runs against each backend that is included | In progress: profiles in `models.yaml`; Meta done, Baseten and Modal not run yet |
-| Phase 2 | Evaluation runner and scoreboard | Seeded runs, repeats, metrics stored, scoreboard produced for at least two models | In progress: SQLite store and scoreboard work; baseline and Spark 1.3 rows done, second model pending |
+| Phase 2 | Provider layer (Meta, Baseten, Modal-served Glimmer) | Same agent code runs against each backend that is included | Done for Meta and Baseten (same agent code, profiles in `models.yaml`); Modal Glimmer not attempted |
+| Phase 2 | Evaluation runner and scoreboard | Seeded runs, repeats, metrics stored, scoreboard produced for at least two models | Done: baseline, Muse Spark 1.3 and Muse Spark Open on the same 27 scenarios (one repeat; repeats in Phase 3) |
 | Phase 2 | Dashboard | Live topology, timeline, plan diff, gate verdict, verification table during a full run | Done: 9/9 checklist items |
 | Phase 2 | Incident report generator | Each run yields an evidence report | Done: 64 reports for 64 runs |
 | Phase 3 | Held-out benchmark with repeats | Numbers recorded per model with versions and dates | Not Started |

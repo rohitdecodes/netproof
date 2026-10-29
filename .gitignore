@@ -14,3 +14,5 @@ reports/
 .idea/
 .DS_Store
 Thumbs.db
+# phase planning docs (plans, notes, summaries) stay local, not in the public repo
+docs/phase*.md
