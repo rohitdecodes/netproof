@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 1 complete (28 Oct 2026), decision Go with conditions. Phase 2 in progress (plan: `docs/phase_2.md`) |
+| Status | Phase 2 complete (29 Oct 2026), decision Go to Phase 3. Tag `v0.2-phase2`. Phase 3 next |
 | Document version | 0.1, written 27 Oct 2026 |
 | Name | "NetProof" is a working title. Not checked for trademark or domain conflicts [A] |
 | Primary goal right now | Win a top-5 placement in the Indie Developer track of the Meta Global AI Developer Hackathon (submission due 4 Nov 2026) |
@@ -651,6 +651,7 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 29 Oct | Second model: Muse Spark Open on Baseten (`meta-models/muse-spark-open-1026`): 27/27 fixed, clean fix 24/27, diagnosis 26/27, $0.425 total, median $0.0156 per run (dev seeds, not for public quoting) | Phase 2 Step 9 and 10 | `runs/` eval-20261029-171339-spark-open-p2 | Open-weights comparison covered |
 | 29 Oct | Muse Glimmer on Modal not attempted in Phase 2; human reference timing deferred | Developer decision under deadline | - | Glimmer optional in Phase 3; timing before the video |
 | 29 Oct | Phase planning docs (plans, notes, summaries) kept local: `docs/phase*.md` gitignored and untracked | Public repo holds only project files | `.gitignore` | Evidence links to those docs are local-only |
+| 29 Oct | **Phase 2 decision: Go to Phase 3.** P2-V1 to V8 met (Glimmer recorded as excluded); baseline 12/27, Spark 1.3 and Spark Open 27/27 fixed, 24/27 clean | Developer approved | Tag `v0.2-phase2` | Phase 3: held-out benchmark with repeats, MTU clean-fix work |
 
 ---
 
