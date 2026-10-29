@@ -138,6 +138,10 @@ class DockerLab:
         links = self._json(node, ["ip", "-j", "link", "show"])
         return {l["ifname"]: "UP" in l.get("flags", []) for l in links if l["ifname"] != "lo"}
 
+    def mtus(self, node: str) -> Dict[str, int]:
+        links = self._json(node, ["ip", "-j", "link", "show"])
+        return {l["ifname"]: int(l.get("mtu", 0)) for l in links if l["ifname"] != "lo"}
+
     def addresses(self, node: str) -> Dict[str, List[str]]:
         data = self._json(node, ["ip", "-j", "-4", "addr", "show"])
         out: Dict[str, List[str]] = {}
@@ -160,6 +164,7 @@ class DockerLab:
     def snapshot(self, node: str) -> dict:
         return {
             "links": self.link_states(node),
+            "mtus": self.mtus(node),
             "addrs": self.addresses(node),
             "routes": self.routes(node),
             "iptables": self.must(node, ["iptables-save"]),
@@ -169,6 +174,7 @@ class DockerLab:
     def snapshots_equal(a: dict, b: dict) -> bool:
         return (
             a["links"] == b["links"]
+            and a.get("mtus") == b.get("mtus")
             and a["addrs"] == b["addrs"]
             and a["routes"] == b["routes"]
             and normalize_iptables(a["iptables"]) == normalize_iptables(b["iptables"])
@@ -183,6 +189,8 @@ class DockerLab:
             if not r.ok:
                 errors.append(f"{' '.join(argv)}: {r.text()}")
 
+        for ifname, mtu in snap.get("mtus", {}).items():
+            run(["ip", "link", "set", ifname, "mtu", str(mtu)])
         for ifname, up in snap["links"].items():
             run(["ip", "link", "set", ifname, "up" if up else "down"])
         current = self.addresses(node)
@@ -211,7 +219,7 @@ class DockerLab:
         spec = self.topo.nodes[node]
         ifmap = self.iface_map(node)
         for net, ifname in ifmap.items():
-            self.must(node, ["ip", "link", "set", ifname, "up"])
+            self.must(node, ["ip", "link", "set", ifname, "mtu", str(self.topo.mtu(net)), "up"])
         current = self.addresses(node)
         for net, ip in spec.interfaces.items():
             ifname = ifmap[net]
@@ -228,6 +236,7 @@ class DockerLab:
             self.must(node, ["ip", "route", "replace", "default", "via", spec.gateway])
         self.must(node, ["iptables-restore"], stdin=self._iptables_baseline(node))
         self.exec(node, ["conntrack", "-F"])
+        self.exec(node, ["ip", "route", "flush", "cache"])  # forget learned path MTUs between scenarios
 
     def provision_all(self) -> None:
         with ThreadPoolExecutor(max_workers=len(self.topo.nodes)) as pool:
@@ -243,6 +252,9 @@ class DockerLab:
             r = self.exec(flow.src, ["ping", "-c", "1", "-W", "1", dst_ip], timeout=8)
         elif flow.proto == "tcp":
             r = self.exec(flow.src, ["nc", "-z", "-w", "2", dst_ip, str(flow.port)], timeout=8)
+        elif flow.proto == "tcp-bulk":
+            r = self.exec(flow.src, ["python3", "/opt/np/bulk.py", dst_ip, str(flow.port), "65536", "3"],
+                          timeout=10)
         else:
             raise LabError(f"unsupported proto {flow.proto}")
         return r.ok

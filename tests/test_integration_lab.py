@@ -47,7 +47,30 @@ def test_snapshot_restore_round_trip(env):
     snap = lab.snapshot("r-core")
     lab.run_command("r-core", "ip route del 10.10.1.0/24")
     lab.run_command("r-core", "iptables -I FORWARD 1 -s 10.10.2.0/24 -d 10.10.3.0/24 -j ACCEPT")
+    lab.run_command("r-core", lab.resolve_placeholders("r-core", "ip link set {if:server} mtu 1200"))
     assert not lab.snapshots_equal(lab.snapshot("r-core"), snap)
     errors = lab.restore("r-core", snap)
     assert errors == []
     assert lab.snapshots_equal(lab.snapshot("r-core"), snap)
+
+
+def test_hosts_do_not_forward(env):
+    topo, lab, _ = env
+    for host in ("pc-staff", "pc-guest", "fileserver", "webserver"):
+        assert lab.exec(host, ["sysctl", "-n", "net.ipv4.ip_forward"]).out.strip() == "0", host
+
+
+def test_bulk_flow_detects_a_pmtu_black_hole(env):
+    from netproof.intent import Flow
+
+    topo, lab, _ = env
+    lab.reset()
+    bulk = Flow("t", "pc-staff", "fileserver", "tcp-bulk", 445, "allow")
+    small = Flow("t2", "pc-staff", "fileserver", "tcp", 445, "allow")
+    assert lab.run_flow(bulk)
+    lab.run_command("r-core", lab.resolve_placeholders("r-core", "ip link set {if:server} mtu 1200"))
+    lab.run_command("r-core", "iptables -A OUTPUT -p icmp --icmp-type fragmentation-needed -j DROP")
+    assert lab.run_flow(small), "small connections must still work"
+    assert not lab.run_flow(bulk), "64 KB transfer must fail through the black hole"
+    lab.reset()
+    assert lab.run_flow(bulk), "reset must heal the MTU and flush learned path MTUs"

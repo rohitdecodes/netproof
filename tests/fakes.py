@@ -22,6 +22,12 @@ class FakeLab:
         self.state = {"route_ok": route_ok, "guest_open": False}
         self.commands: List[str] = []
 
+    def reset(self):
+        self.state = {"route_ok": True, "guest_open": False}
+
+    def resolve_placeholders(self, node, cmd):
+        return cmd
+
     # interfaces / exec
     def ifaces(self, node):
         return ["eth0", "eth1", "eth2"]
@@ -58,7 +64,7 @@ class FakeLab:
         r, g = self.state["route_ok"], self.state["guest_open"]
         if flow.src == "pc-staff":
             return r
-        if flow.id == "guest_web_http":
+        if flow.id in ("guest_web_http", "guest_web_bulk"):
             return r
         if flow.dst in ("fileserver", "webserver"):
             return r and g

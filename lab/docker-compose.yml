@@ -8,6 +8,11 @@ x-node: &node
   cap_add: [NET_ADMIN, NET_RAW]
   restart: "no"
 
+# Hosts must never forward: a route that wrongly points at a host must black-hole,
+# not silently work. (New network namespaces can inherit forwarding from the VM.)
+x-host-sysctls: &host_sysctls
+  net.ipv4.ip_forward: "0"
+
 x-router-sysctls: &router_sysctls
   net.ipv4.ip_forward: "1"
   net.ipv4.conf.all.rp_filter: "0"
@@ -18,24 +23,28 @@ services:
     <<: *node
     container_name: np-pc-staff
     hostname: pc-staff
+    sysctls: *host_sysctls
     networks:
       staff: {ipv4_address: 10.10.1.10}
   pc-guest:
     <<: *node
     container_name: np-pc-guest
     hostname: pc-guest
+    sysctls: *host_sysctls
     networks:
       guest: {ipv4_address: 10.10.2.10}
   fileserver:
     <<: *node
     container_name: np-fileserver
     hostname: fileserver
+    sysctls: *host_sysctls
     networks:
       server: {ipv4_address: 10.10.3.10}
   webserver:
     <<: *node
     container_name: np-webserver
     hostname: webserver
+    sysctls: *host_sysctls
     networks:
       server: {ipv4_address: 10.10.3.20}
   r-edge:

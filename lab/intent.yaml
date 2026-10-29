@@ -1,10 +1,13 @@
 # What "healthy" means. expect: allow = must be reachable, deny = must NOT be reachable.
+# proto tcp-bulk = connect AND push 64 KB through (catches MTU black holes that a SYN alone does not).
 flows:
   - {id: staff_file_smb,   src: pc-staff, dst: fileserver, proto: tcp,  port: 445, expect: allow}
   - {id: staff_web_http,   src: pc-staff, dst: webserver,  proto: tcp,  port: 80,  expect: allow}
   - {id: staff_file_ping,  src: pc-staff, dst: fileserver, proto: icmp,            expect: allow}
   - {id: staff_web_ping,   src: pc-staff, dst: webserver,  proto: icmp,            expect: allow}
   - {id: guest_web_http,   src: pc-guest, dst: webserver,  proto: tcp,  port: 80,  expect: allow}
+  - {id: staff_file_bulk,  src: pc-staff, dst: fileserver, proto: tcp-bulk, port: 445, expect: allow}
+  - {id: guest_web_bulk,   src: pc-guest, dst: webserver,  proto: tcp-bulk, port: 80,  expect: allow}
   - {id: guest_file_smb,   src: pc-guest, dst: fileserver, proto: tcp,  port: 445, expect: deny}
   - {id: guest_file_http,  src: pc-guest, dst: fileserver, proto: tcp,  port: 80,  expect: deny}
   - {id: guest_file_ping,  src: pc-guest, dst: fileserver, proto: icmp,            expect: deny}

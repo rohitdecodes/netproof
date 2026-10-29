@@ -1,6 +1,7 @@
 # NetProof lab topology "branch". Single source of truth for addressing,
 # routing and firewall baseline. Docker Compose must use the same addresses.
 name: branch
+default_mtu: 1500
 listen_ports: [80, 445, 8080]
 networks:
   staff:   {docker_name: np_staff,   subnet: 10.10.1.0/24, bridge_ip: 10.10.1.254}

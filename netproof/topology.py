@@ -33,8 +33,12 @@ class Topology:
     networks: Dict[str, dict]
     nodes: Dict[str, Node]
     listen_ports: List[int]
+    default_mtu: int = 1500
 
     # ---- addressing -------------------------------------------------------
+    def mtu(self, network: str) -> int:
+        return int(self.networks[network].get("mtu", self.default_mtu))
+
     def prefixlen(self, network: str) -> int:
         return ipaddress.ip_network(self.networks[network]["subnet"]).prefixlen
 
@@ -117,4 +121,5 @@ def load_topology(path: Optional[Path] = None) -> Topology:
         networks=dict(data["networks"]),
         nodes=nodes,
         listen_ports=list(data.get("listen_ports", [])),
+        default_mtu=int(data.get("default_mtu", 1500)),
     )
