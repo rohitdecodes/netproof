@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetProof</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>NetProof</h1>
+    <span class="sub">network repair agent that must prove its fix</span>
+    <nav>
+      <button id="tab-run" class="tab active">Run</button>
+      <button id="tab-score" class="tab">Scoreboard</button>
+    </nav>
+  </header>
+
+  <main id="view-run">
+    <aside class="panel">
+      <h2>Start a run</h2>
+      <label>Fault class <select id="f-class"></select></label>
+      <label>Variant (seed) <select id="f-seed"></select></label>
+      <label>Agent
+        <select id="f-agent"><option value="llm">Model</option><option value="baseline">Scripted baseline</option></select>
+      </label>
+      <label id="profile-row">Model profile <select id="f-profile"></select></label>
+      <button id="start" class="primary">Inject fault and run</button>
+      <p id="start-msg" class="muted"></p>
+      <h2>Recent runs</h2>
+      <ul id="runs" class="runs"></ul>
+    </aside>
+
+    <section class="center">
+      <div class="panel" id="ticket-box">
+        <div class="muted">Ticket</div>
+        <div id="ticket">Pick a scenario and start a run, or open a recent run.</div>
+        <div id="run-meta" class="muted"></div>
+      </div>
+      <div class="panel">
+        <svg id="topo" viewBox="0 0 820 340" role="img" aria-label="Lab topology"></svg>
+        <div class="legend">
+          <span><i class="dot path"></i>reported path</span>
+          <span><i class="dot committed"></i>change kept</span>
+          <span><i class="dot rolled"></i>change rolled back</span>
+          <span><i class="dot rejected"></i>blocked by gate</span>
+          <span><i class="dot truth"></i>actual fault (after run)</span>
+        </div>
+      </div>
+      <div class="panel" id="summary" hidden></div>
+      <div class="panel">
+        <h2>Timeline</h2>
+        <ol id="timeline" class="timeline"></ol>
+      </div>
+    </section>
+
+    <aside class="panel flows-panel">
+      <h2>Verification</h2>
+      <div class="muted">Every flow, tested after each change</div>
+      <table id="flows"><thead><tr><th>Flow</th><th>Expect</th><th>Now</th></tr></thead><tbody></tbody></table>
+    </aside>
+  </main>
+
+  <main id="view-score" hidden>
+    <section class="panel wide">
+      <h2>Scoreboard</h2>
+      <div class="muted">Rates exclude infrastructure errors. Clean fix = verified fix with zero leftover config differences.</div>
+      <div class="table-wrap"><table id="score"><thead></thead><tbody></tbody></table></div>
+      <h2>By fault class (fixed / runs)</h2>
+      <div class="table-wrap"><table id="score-class"><thead></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
