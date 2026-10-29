@@ -13,8 +13,9 @@ def new_run_id(agent: str, scenario_id: str, repeat: int = 0) -> str:
     return f"{time.strftime('%Y%m%d-%H%M%S')}-{agent}-{scenario_id}-r{repeat}"
 
 
-def write_record(record: dict, subdir: Optional[str] = None) -> Path:
-    folder = RUNS_DIR / subdir if subdir else RUNS_DIR
+def write_record(record: dict, subdir: Optional[str] = None, base: Optional[Path] = None) -> Path:
+    root = Path(base) if base else RUNS_DIR
+    folder = root / subdir if subdir else root
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{record['run_id']}.json"
     path.write_text(json.dumps(record, indent=2, default=str))

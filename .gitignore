@@ -8,6 +8,7 @@ __pycache__/
 .pytest_cache/
 # run outputs (summaries are copied into docs/ by hand)
 runs/
+reports/
 # editors / OS
 .vscode/
 .idea/
