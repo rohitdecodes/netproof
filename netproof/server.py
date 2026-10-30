@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import ROOT, load_profiles
-from .faults import CATALOG, FAULT_CLASSES
+from .faults import SPLITS
 from .intent import load_intent
 from .records import write_record
 from .report import write_report
@@ -31,6 +31,7 @@ class RunRequest(BaseModel):
     seed: int = 0
     agent: str = "llm"
     profile: Optional[str] = None
+    split: str = "dev"
 
 
 def default_run_fn(run_id: str, req: RunRequest, emit: Callable[[str, dict], None]) -> dict:
@@ -38,7 +39,7 @@ def default_run_fn(run_id: str, req: RunRequest, emit: Callable[[str, dict], Non
 
     topo = load_topology()
     return run_scenario(DockerLab(topo), topo, load_intent(), req.fault_class, req.seed, req.agent,
-                        profile=req.profile, emit=emit, run_id=run_id)
+                        profile=req.profile, emit=emit, run_id=run_id, split=req.split)
 
 
 def default_check_fn() -> dict:
@@ -89,9 +90,11 @@ def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
         }
 
     @app.get("/api/catalog")
-    def catalog():
+    def catalog(split: str = "dev"):
+        if split not in SPLITS:
+            raise HTTPException(422, f"unknown split {split!r}")
         return {c: [{"seed": i, "variant": v.key, "reported_flow": v.reported_flow}
-                    for i, v in enumerate(CATALOG[c])] for c in FAULT_CLASSES}
+                    for i, v in enumerate(vs)] for c, vs in SPLITS[split].items()}
 
     @app.get("/api/profiles")
     def profiles():
@@ -104,10 +107,12 @@ def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
 
     @app.post("/api/runs")
     def start_run(req: RunRequest):
-        if req.fault_class not in FAULT_CLASSES:
-            raise HTTPException(422, f"unknown fault class {req.fault_class!r}")
-        if req.agent not in ("llm", "baseline"):
-            raise HTTPException(422, "agent must be llm or baseline")
+        if req.split not in SPLITS:
+            raise HTTPException(422, f"unknown split {req.split!r}")
+        if req.fault_class not in SPLITS[req.split]:
+            raise HTTPException(422, f"unknown fault class {req.fault_class!r} in split {req.split}")
+        if req.agent not in ("llm", "baseline", "router"):
+            raise HTTPException(422, "agent must be llm, baseline or router")
         profiles_known = load_profiles().get("profiles", {})
         if req.agent == "llm" and req.profile and req.profile not in profiles_known:
             raise HTTPException(422, f"unknown profile {req.profile!r}")
@@ -115,7 +120,8 @@ def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
             if state["active"]:
                 raise HTTPException(409, f"run {state['active']} is still in progress")
             profile = req.profile or load_profiles().get("default")
-            run_id = new_run_id(req.agent, f"{req.fault_class}-s{req.seed}", 0, profile)
+            sid = f"{req.fault_class}-s{req.seed}" if req.split == "dev" else f"{req.split}-{req.fault_class}-s{req.seed}"
+            run_id = new_run_id(req.agent, sid, 0, profile)
             state["active"] = run_id
         threading.Thread(target=worker, args=(run_id, req), daemon=True).start()
         return {"run_id": run_id}
@@ -146,8 +152,14 @@ def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
     def evals():
         return store.evals()
 
+    @app.get("/api/labels")
+    def labels():
+        return store.labels()
+
     @app.get("/api/scoreboard")
-    def scoreboard(eval: Optional[List[str]] = Query(default=None)):
+    def scoreboard(eval: Optional[List[str]] = Query(default=None), label: Optional[str] = None):
+        if label:
+            return {"label": label, "evals": store.eval_ids_for_label(label), "rows": store.scoreboard(label=label)}
         ids = eval or [e["eval_id"] for e in store.evals()]
         return {"evals": ids, "rows": store.scoreboard(ids)}
 

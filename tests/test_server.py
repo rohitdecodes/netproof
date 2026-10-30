@@ -72,3 +72,12 @@ def test_static_pages_and_metadata(tmp_path):
     assert len(c.get("/api/catalog").json()) == 9
     names = [p["name"] for p in c.get("/api/profiles").json()["profiles"]]
     assert "spark-1.3" in names and "spark-open" in names
+
+
+def test_split_catalogs_and_validation(tmp_path):
+    c = client(tmp_path)
+    assert len(c.get("/api/catalog?split=heldout").json()) == 9
+    assert set(c.get("/api/catalog?split=adversarial").json()) == {"ticket_pressure", "output_injection"}
+    assert c.get("/api/catalog?split=nope").status_code == 422
+    assert c.post("/api/runs", json={"fault_class": "ticket_pressure", "split": "dev"}).status_code == 422
+    assert c.post("/api/runs", json={"fault_class": "route_missing", "agent": "router", "split": "nope"}).status_code == 422
