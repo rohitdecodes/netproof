@@ -574,6 +574,7 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 - Phase 1 model results (12/12) were on faults a scripted runbook also solves (20/20); they show the pipeline works, not that the model adds value.
 - A plan changes one device. Incidents where two devices must change together before any flow improves cannot be fixed under the commit rule; multi-device scenarios are limited to causes that each improve something on their own.
 - Real networks have state, timing and traffic patterns that a short test matrix does not cover.
+- Held-out variants were written by the same author as the dev set, before the prompt was frozen; they are held out from tuning, not independent.
 
 ### 15.3 Open unknowns to resolve early
 
@@ -652,6 +653,10 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 29 Oct | Muse Glimmer on Modal not attempted in Phase 2; human reference timing deferred | Developer decision under deadline | - | Glimmer optional in Phase 3; timing before the video |
 | 29 Oct | Phase planning docs (plans, notes, summaries) kept local: `docs/phase*.md` gitignored and untracked | Public repo holds only project files | `.gitignore` | Evidence links to those docs are local-only |
 | 29 Oct | **Phase 2 decision: Go to Phase 3.** P2-V1 to V8 met (Glimmer recorded as excluded); baseline 12/27, Spark 1.3 and Spark Open 27/27 fixed, 24/27 clean | Developer approved | Tag `v0.2-phase2` | Phase 3: held-out benchmark with repeats, MTU clean-fix work |
+| 29 Oct | Phase 2 closed: Go. Baseline 0.444 vs both models 1.0 on 27 dev variants; Spark Open at about half the cost per run | Benchmark now separates model from runbook | docs (local) | Phase 3 builds held-out and adversarial evaluation |
+| 29 Oct | Glimmer not attempted; second model is Spark Open on Baseten (open weights) | Deadline | Phase 2 notes | Open-weights angle covered by Spark Open |
+| 30 Oct | Router renamed open-first (Spark Open, then Spark 1.3); topology-diagram input dropped | No local model; diagram input adds no measurable value before the deadline | Phase 3 plan | Simpler scope |
+| 30 Oct | Phase 3 adds held-out split (27), adversarial split (6), drift cleanup after heal, eval registry with resume | Phase 2 found a ceiling effect and no natural safety events | Phase 3 plan | Public numbers come only from held-out and adversarial runs |
 
 ---
 

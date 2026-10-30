@@ -1,6 +1,8 @@
 # Model profiles. Secrets are NOT stored here: each profile names the environment
 # variable (in .env) that holds its key. Prices are USD per 1M tokens.
 default: spark-1.3
+# open-first router: try the first profile, escalate to the second only if the first does not fix it
+router: [spark-open, spark-1.3]
 profiles:
   spark-1.3:
     base_url: https://api.meta.ai/v1
@@ -21,7 +23,7 @@ profiles:
     model: meta-models/muse-spark-open-1026
     key_env: BASETEN_API_KEY
     price: {in: 1.25, cached: 0.15, out: 4.25}   # Baseten pricing page snapshot, 23 Oct 2026
-    reasoning_effort: null
+    reasoning_effort: low
   glimmer:
     # Self-served on Modal (Step 9). Replace YOUR-WORKSPACE after `modal deploy`.
     base_url: https://YOUR-WORKSPACE--netproof-glimmer-serve.modal.run/v1
