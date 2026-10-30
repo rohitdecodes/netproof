@@ -143,7 +143,8 @@ function applyEvent(ev) {
     }
     case "plan_submitted": {
       const rc = d.root_cause ? `<div class="muted">root cause: ${esc(d.root_cause.device)} / ${esc(d.root_cause.fault_class)}: ${esc(d.root_cause.summary)}</div>` : "";
-      S.planItems[d.index] = addItem("plan", `Plan ${d.index + 1} on ${esc(d.plan.device)}`, `${rc}<pre>${esc(d.plan.commands.join("\n"))}</pre><div class="verdict muted">checking...</div>`);
+      const tag = `${d.phase === "cleanup" ? " (cleanup)" : ""}${d.profile ? " [" + esc(d.profile) + "]" : ""}`;
+      S.planItems[d.index] = addItem("plan", `Plan ${d.index + 1}${tag} on ${esc(d.plan.device)}`, `${rc}<pre>${esc(d.plan.commands.join("\n"))}</pre><div class="verdict muted">checking...</div>`);
       break;
     }
     case "plan_result": {
@@ -155,7 +156,7 @@ function applyEvent(ev) {
       if (d.improvements && d.improvements.length) txt += `<div>fixed: ${esc(d.improvements.join(", "))}</div>`;
       if (d.apply_errors && d.apply_errors.length) txt += `<pre>${esc(d.apply_errors.join("\n"))}</pre>`;
       if (li) { li.classList.add(cls); li.querySelector(".verdict").innerHTML = txt; }
-      const dev = li ? li.querySelector(".head").textContent.split(" on ")[1] : null;
+      const dev = li ? li.querySelector(".head").textContent.split(" on ").pop() : null;
       if (dev) markNode(dev, NODE_CLASS[d.outcome]);
       if (d.flows_now && Object.keys(d.flows_now).length) {
         S.changed = new Set([...(d.improvements || []), ...(d.regressions || [])]);
@@ -163,6 +164,12 @@ function applyEvent(ev) {
       }
       break;
     }
+    case "drift":
+      addItem("warn", `Healthy, ${d.count} leftover difference(s) from intended config`, `<pre>${esc(Object.entries(d.items).map(([n, it]) => n + ": " + it.join("; ")).join("\n"))}</pre>`);
+      break;
+    case "escalated":
+      addItem("warn", `Escalated from ${esc(d.from)} to ${esc(d.to)}`, `<div class="muted">first attempt ended ${esc(d.first_outcome)}</div>`);
+      break;
     case "run_finished": showSummary(d); break;
     case "saved": $("report-link") && ($("report-link").hidden = false); break;
     case "run_failed": addItem("bad", "Run failed", `<pre>${esc(d.error)}</pre>`); break;
@@ -183,6 +190,10 @@ function showSummary(d) {
       <div><div class="k">Plans</div><div class="v">${d.plan_count ?? "-"}</div></div>
       <div><div class="k">Gate blocks</div><div class="v">${d.gate_rejections ?? 0}</div></div>
       <div><div class="k">Rollbacks (damage)</div><div class="v">${d.collateral_rollbacks ?? 0}</div></div>
+      <div><div class="k">Unsafe attempts</div><div class="v">${d.unsafe_attempts ?? 0}</div></div>
+      <div><div class="k">Took the bait</div><div class="v">${d.trap_hits ? "yes" : "no"}</div></div>
+      <div><div class="k">Policy intact</div><div class="v">${d.policy_intact === false ? "NO" : d.policy_intact ? "yes" : "-"}</div></div>
+      <div><div class="k">Escalated</div><div class="v">${d.escalated === null || d.escalated === undefined ? "-" : d.escalated ? "yes" : "no"}</div></div>
       <div><div class="k">Cost</div><div class="v">$${(d.cost_usd || 0).toFixed(4)}</div></div>
       <div><div class="k">Time</div><div class="v">${d.wall_seconds ?? "-"} s</div></div>
     </div>
@@ -214,7 +225,7 @@ async function poll() {
 
 async function startRun() {
   const body = { fault_class: $("f-class").value, seed: +$("f-seed").value, agent: $("f-agent").value,
-                 profile: $("f-agent").value === "llm" ? $("f-profile").value : null };
+                 profile: $("f-agent").value === "llm" ? $("f-profile").value : null, split: $("f-split").value };
   $("start-msg").textContent = "";
   try {
     const r = await api("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -243,8 +254,14 @@ async function loadRuns() {
 
 // ---------------------------------------------------------------- scoreboard
 async function loadScore() {
-  const s = await api("/api/scoreboard");
-  const cols = ["agent", "profile", "runs", "fix_rate", "clean_fix_rate", "diagnosis_rate", "collateral_rollbacks", "gate_rejections", "median_cost_usd", "median_seconds"];
+  const labels = await api("/api/labels");
+  const pick = $("score-label");
+  if (pick && pick.options.length !== labels.length + 1) {
+    pick.innerHTML = '<option value="">all evals</option>' + labels.map((l) => `<option>${esc(l)}</option>`).join("");
+  }
+  const label = pick ? pick.value : "";
+  const s = await api(label ? `/api/scoreboard?label=${encodeURIComponent(label)}` : "/api/scoreboard");
+  const cols = ["agent", "profile", "runs", "errors", "fix_rate", "fix_ci", "clean_fix_rate", "diagnosis_rate", "consistent_variants", "unsafe_attempts", "runs_taking_bait", "policy_intact_rate", "escalation_rate", "median_cost_usd", "median_seconds"];
   $("score").querySelector("thead").innerHTML = "<tr>" + cols.map((c) => `<th>${esc(c)}</th>`).join("") + "</tr>";
   $("score").querySelector("tbody").innerHTML = s.rows.map((r) => "<tr>" + cols.map((c) => `<td>${esc(r[c] ?? "-")}</td>`).join("") + "</tr>").join("");
   const classes = [...new Set(s.rows.flatMap((r) => Object.keys(r.by_class)))].sort();
@@ -263,18 +280,24 @@ function showTab(which) {
 async function init() {
   S.topo = await api("/api/topology");
   S.flows = S.topo.flows;
-  S.catalog = await api("/api/catalog");
   const profiles = await api("/api/profiles");
-  $("f-class").innerHTML = Object.keys(S.catalog).map((c) => `<option>${esc(c)}</option>`).join("");
   const fillSeeds = () => {
     $("f-seed").innerHTML = S.catalog[$("f-class").value].map((v) => `<option value="${v.seed}">${esc(v.variant)} (${esc(v.reported_flow)})</option>`).join("");
   };
-  $("f-class").onchange = fillSeeds; fillSeeds();
+  const loadCatalog = async () => {
+    S.catalog = await api(`/api/catalog?split=${encodeURIComponent($("f-split").value)}`);
+    $("f-class").innerHTML = Object.keys(S.catalog).map((c) => `<option>${esc(c)}</option>`).join("");
+    fillSeeds();
+  };
+  $("f-class").onchange = fillSeeds;
+  $("f-split").onchange = () => loadCatalog().catch((e) => ($("start-msg").textContent = e.message));
+  await loadCatalog();
   $("f-profile").innerHTML = profiles.profiles.map((p) => `<option value="${esc(p.name)}" ${p.name === profiles.default ? "selected" : ""} ${p.key_present ? "" : "disabled"}>${esc(p.name)}${p.key_present ? "" : " (no key)"}</option>`).join("");
   $("f-agent").onchange = () => ($("profile-row").hidden = $("f-agent").value !== "llm");
   $("start").onclick = startRun;
   $("tab-run").onclick = () => showTab("run");
   $("tab-score").onclick = () => showTab("score");
+  $("score-label").onchange = () => loadScore().catch((e) => alert(e.message));
   resetView();
   await loadRuns();
   const st = await api("/api/status");

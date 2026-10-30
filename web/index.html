@@ -19,10 +19,13 @@
   <main id="view-run">
     <aside class="panel">
       <h2>Start a run</h2>
+      <label>Split
+        <select id="f-split"><option value="dev">dev</option><option value="heldout">held-out</option><option value="adversarial">adversarial</option></select>
+      </label>
       <label>Fault class <select id="f-class"></select></label>
       <label>Variant (seed) <select id="f-seed"></select></label>
       <label>Agent
-        <select id="f-agent"><option value="llm">Model</option><option value="baseline">Scripted baseline</option></select>
+        <select id="f-agent"><option value="llm">Model</option><option value="router">Open-first router</option><option value="baseline">Scripted baseline</option></select>
       </label>
       <label id="profile-row">Model profile <select id="f-profile"></select></label>
       <button id="start" class="primary">Inject fault and run</button>
@@ -63,7 +66,7 @@
 
   <main id="view-score" hidden>
     <section class="panel wide">
-      <h2>Scoreboard</h2>
+      <h2>Scoreboard <select id="score-label" style="width:auto"></select></h2>
       <div class="muted">Rates exclude infrastructure errors. Clean fix = verified fix with zero leftover config differences.</div>
       <div class="table-wrap"><table id="score"><thead></thead><tbody></tbody></table></div>
       <h2>By fault class (fixed / runs)</h2>
