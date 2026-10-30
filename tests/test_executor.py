@@ -27,7 +27,7 @@ def test_fix_that_opens_guest_is_rolled_back_and_state_restored():
     res = Executor(lab, FLOWS).execute(plan([GOOD_ROUTE, OPEN_GUEST]), CTX)
     assert res.outcome == PlanOutcome.ROLLED_BACK_COLLATERAL
     assert res.restored_ok is True
-    assert lab.state == {"route_ok": False, "guest_open": False}
+    assert lab.state == {"route_ok": False, "guest_open": False, "junk": False}
     assert "guest_staff_ping" in res.regressions
 
 
@@ -43,3 +43,24 @@ def test_gate_rejection_changes_nothing():
     res = Executor(lab, FLOWS).execute(plan(["iptables -F"]), CTX)
     assert res.outcome == PlanOutcome.REJECTED_BY_GATE
     assert lab.commands == []
+
+
+def test_cleanup_rule_keeps_a_change_that_reduces_drift():
+    from tests.fakes import DEL_JUNK
+
+    lab = FakeLab(route_ok=True)
+    lab.state["junk"] = True
+    drift = lambda: {"r-edge": ["rule extra: junk"]} if lab.state["junk"] else {}
+    res = Executor(lab, FLOWS, drift_fn=drift).execute(plan([DEL_JUNK]), CTX)
+    assert res.cleanup and res.outcome == PlanOutcome.COMMITTED
+    assert (res.drift_before, res.drift_after) == (1, 0) and not lab.state["junk"]
+
+
+def test_cleanup_rule_rolls_back_a_change_that_does_not_reduce_drift():
+    from tests.fakes import ADD_JUNK
+
+    lab = FakeLab(route_ok=True)
+    drift = lambda: {"r-edge": ["rule extra: junk"]} if lab.state["junk"] else {}
+    res = Executor(lab, FLOWS, drift_fn=drift).execute(plan([ADD_JUNK]), CTX)
+    assert res.cleanup and res.outcome == PlanOutcome.ROLLED_BACK_NO_EFFECT
+    assert not lab.state["junk"] and res.restored_ok

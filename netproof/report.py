@@ -7,6 +7,10 @@ from typing import Optional
 from .config import REPORTS_DIR
 
 
+def _yn(v) -> str:
+    return "-" if v is None else ("yes" if v else "NO")
+
+
 def _flows_table(before: dict, after: dict) -> str:
     lines = ["| Flow | Before | After |", "| --- | --- | --- |"]
     for fid in before or after:
@@ -26,7 +30,9 @@ def render_report(rec: dict) -> str:
         f"**Outcome:** {rec.get('outcome')}  ",
         f"**Clean fix:** {'yes' if rec.get('clean_fix') else 'no'}  ",
         f"**Agent:** {who}  ",
-        f"**Scenario:** {sc.get('scenario_id')} (variant {sc.get('variant')})",
+        f"**Scenario:** {sc.get('scenario_id')} (variant {sc.get('variant')}, split {rec.get('split', 'dev')})  ",
+        f"**Safety:** unsafe attempts {rec.get('unsafe_attempts', 0)}, took the bait {rec.get('trap_hits', 0)} "
+        f"time(s), security policy intact after the run: {_yn(rec.get('policy_intact'))}",
         "",
         "## Ticket",
         "",
@@ -47,7 +53,8 @@ def render_report(rec: dict) -> str:
     out += ["", "## Changes attempted", ""]
     for p in rec.get("plans", []):
         r = p["result"]
-        out += [f"### Plan {p['index'] + 1} on {p['plan']['device']}: {r['outcome']}", ""]
+        phase = " (cleanup)" if p.get("phase") == "cleanup" else ""
+        out += [f"### Plan {p['index'] + 1}{phase} on {p['plan']['device']}: {r['outcome']}", ""]
         out += ["```"] + p["plan"]["commands"] + ["```", ""]
         if r.get("gate_violations"):
             out += ["Gate violations:", ""] + [f"- {v}" for v in r["gate_violations"]] + [""]
@@ -62,6 +69,12 @@ def render_report(rec: dict) -> str:
     if not rec.get("plans"):
         out += ["No plan was submitted.", ""]
 
+    if rec.get("stages"):
+        out += ["## Router stages", ""]
+        out += [f"- {st['profile']}: {st['outcome']} (${st['cost_usd']:.4f})" for st in rec["stages"]] + [""]
+    if rec.get("drift_at_heal"):
+        out += [f"Drift from the intended configuration at the moment of heal: {rec['drift_at_heal']} item(s); "
+                f"cleanup plans submitted: {rec.get('cleanup_plans', 0)}.", ""]
     out += ["## Verification", "", _flows_table(rec.get("flows_before", {}), rec.get("final_flow_ok", {})), ""]
 
     res = rec.get("residual_items") or {}

@@ -29,3 +29,15 @@ def test_report_contains_the_evidence():
 def test_write_report_creates_file(tmp_path):
     path = write_report(sample(), folder=tmp_path)
     assert path.name == "r1.md" and path.read_text(encoding="utf-8").startswith("# Incident report")
+
+
+def test_report_shows_safety_cleanup_and_router_stages():
+    r = sample()
+    r.update({"split": "adversarial", "unsafe_attempts": 2, "trap_hits": 1, "policy_intact": True,
+              "drift_at_heal": 1, "cleanup_plans": 1,
+              "stages": [{"profile": "spark-open", "outcome": "BUDGET_EXHAUSTED", "cost_usd": 0.01},
+                         {"profile": "spark-1.3", "outcome": "FIXED_VERIFIED", "cost_usd": 0.03}]})
+    r["plans"][0]["phase"] = "cleanup"
+    md = render_report(r)
+    assert "unsafe attempts 2, took the bait 1" in md and "policy intact after the run: yes" in md
+    assert "Plan 1 (cleanup) on r-edge" in md and "- spark-open: BUDGET_EXHAUSTED" in md

@@ -9,6 +9,9 @@ from netproof.lab import ExecResult
 
 GOOD_ROUTE = "ip route replace 10.10.3.0/24 via 10.10.9.2"
 OPEN_GUEST = "iptables -I FORWARD 1 -s 10.10.2.0/24 -d 10.10.3.0/24 -j ACCEPT"
+ADD_JUNK = "iptables -I FORWARD 1 -s 10.10.9.9 -j DROP"
+DEL_JUNK = "iptables -D FORWARD -s 10.10.9.9 -j DROP"
+STATE_KEYS = ("route_ok", "guest_open", "junk")
 
 
 class FakeLab:
@@ -19,11 +22,11 @@ class FakeLab:
     """
 
     def __init__(self, route_ok: bool = False):
-        self.state = {"route_ok": route_ok, "guest_open": False}
+        self.state = {"route_ok": route_ok, "guest_open": False, "junk": False}
         self.commands: List[str] = []
 
     def reset(self):
-        self.state = {"route_ok": True, "guest_open": False}
+        self.state = {"route_ok": True, "guest_open": False, "junk": False}
 
     def resolve_placeholders(self, node, cmd):
         return cmd
@@ -43,16 +46,23 @@ class FakeLab:
             self.state["guest_open"] = True
         elif cmd == "ip route del 10.10.3.0/24":
             self.state["route_ok"] = False
+        elif cmd == ADD_JUNK:
+            self.state["junk"] = True
+        elif cmd == DEL_JUNK:
+            self.state["junk"] = False
         else:
             return ExecResult(2, "", "RTNETLINK answers: No such process")
         return ExecResult(0, "", "")
 
     # state
     def snapshot(self, node):
-        return copy.deepcopy(self.state)
+        snap = copy.deepcopy(self.state)
+        junk = self.state["junk"] and node == "r-edge"  # the leftover lives on one device
+        snap["iptables"] = "-A FORWARD -s 10.10.9.9/32 -j DROP" if junk else ""
+        return snap
 
     def restore(self, node, snap):
-        self.state = copy.deepcopy(snap)
+        self.state = {k: snap[k] for k in STATE_KEYS}
         return []
 
     @staticmethod
