@@ -1,6 +1,6 @@
 import pytest
 
-from netproof.faults import CATALOG
+from netproof.faults import SPLITS
 from netproof.gate import GateContext, check_plan
 from netproof.intent import load_intent
 from netproof.schemas import ChangePlan
@@ -103,14 +103,15 @@ def resolve(node, cmd):
 
 
 def test_catalog_fixes_and_bad_fixes_pass_the_gate():
-    """The verifier must be what catches bad fixes, so every reference plan must get past the gate.
-    Scope is checked on the real lab by validate-verifier; here scope is every device."""
+    """The verifier must be what catches bad fixes, so every reference plan in every split must
+    get past the gate. Scope is checked on the real lab by validate-verifier; here scope is every device."""
     ctx = GateContext(devices=set(TOPO.nodes), scope=set(TOPO.nodes),
                       ifaces={n: set(fake_ifmap(n).values()) for n in TOPO.nodes},
                       node_ips=TOPO.node_ips())
-    for variants in CATALOG.values():
-        for v in variants:
-            for p in list(v.fixes) + ([v.bad_fix] if v.bad_fix else []):
-                d = dict(p, commands=[resolve(p["device"], c) for c in p["commands"]])
-                verdict = check_plan(ChangePlan(**d), ctx)
-                assert verdict.allowed, (v.key, verdict.violations)
+    for split, catalog in SPLITS.items():
+        for variants in catalog.values():
+            for v in variants:
+                for p in list(v.fixes) + ([v.bad_fix] if v.bad_fix else []):
+                    d = dict(p, commands=[resolve(p["device"], c) for c in p["commands"]])
+                    verdict = check_plan(ChangePlan(**d), ctx)
+                    assert verdict.allowed, (split, v.key, verdict.violations)

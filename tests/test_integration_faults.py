@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from netproof.faults import CATALOG, make_scenario
+from netproof.faults import SPLITS, make_scenario
 from netproof.intent import evaluate, is_healthy, load_intent
 from netproof.topology import load_topology
 
@@ -24,11 +24,18 @@ def env():
     lab.reset()
 
 
-@pytest.mark.parametrize("fault,seed", [(c, i) for c in CATALOG for i in range(3)])
-def test_each_variant_breaks_its_flow_and_reset_heals(env, fault, seed):
+CASES = [(split, c, i) for split, cat in SPLITS.items() for c, vs in cat.items() for i in range(len(vs))]
+
+
+@pytest.mark.parametrize("split,fault,seed", CASES)
+def test_each_variant_breaks_its_flow_and_reset_heals(env, split, fault, seed):
     topo, lab, flows = env
-    sc = make_scenario(fault, seed)
+    sc = make_scenario(fault, seed, split)
     lab.reset()
+    for device, cmd in sc.setup:
+        r = lab.run_command(device, lab.resolve_placeholders(device, cmd))
+        assert r.ok, f"setup {device}: {cmd}: {r.text()}"
+    assert is_healthy(evaluate(lab, flows)), f"{sc.variant}: setup alone must not break any flow"
     for device, cmd in sc.injections:
         r = lab.run_command(device, lab.resolve_placeholders(device, cmd))
         assert r.ok, f"{device}: {cmd}: {r.text()}"
