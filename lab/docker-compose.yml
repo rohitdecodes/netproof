@@ -13,8 +13,16 @@ x-node: &node
 x-host-sysctls: &host_sysctls
   net.ipv4.ip_forward: "0"
 
+# Routers never send ICMP redirects: a host would cache the redirected route outside any
+# snapshot, so a correct fix could stay broken for minutes and only a full reset would clear it.
+# The kernel ORs conf/all with conf/<iface>, so both are set (per interface via the endpoint option).
+x-no-redirects: &no_redirects
+  com.docker.network.endpoint.sysctls: "net.ipv4.conf.IFNAME.send_redirects=0"
+
 x-router-sysctls: &router_sysctls
   net.ipv4.ip_forward: "1"
+  net.ipv4.conf.all.send_redirects: "0"
+  net.ipv4.conf.default.send_redirects: "0"
   net.ipv4.conf.all.rp_filter: "0"
   net.ipv4.conf.default.rp_filter: "0"
 
@@ -53,17 +61,17 @@ services:
     hostname: r-edge
     sysctls: *router_sysctls
     networks:
-      staff: {ipv4_address: 10.10.1.1}
-      guest: {ipv4_address: 10.10.2.1}
-      transit: {ipv4_address: 10.10.9.1}
+      staff: {ipv4_address: 10.10.1.1, driver_opts: *no_redirects}
+      guest: {ipv4_address: 10.10.2.1, driver_opts: *no_redirects}
+      transit: {ipv4_address: 10.10.9.1, driver_opts: *no_redirects}
   r-core:
     <<: *node
     container_name: np-r-core
     hostname: r-core
     sysctls: *router_sysctls
     networks:
-      transit: {ipv4_address: 10.10.9.2}
-      server: {ipv4_address: 10.10.3.1}
+      transit: {ipv4_address: 10.10.9.2, driver_opts: *no_redirects}
+      server: {ipv4_address: 10.10.3.1, driver_opts: *no_redirects}
 
 # Plain bridges with masquerade off. Not "internal: true": Docker's isolation
 # rules for internal networks drop routed packets whose destination is outside
