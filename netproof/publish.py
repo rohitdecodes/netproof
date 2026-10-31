@@ -70,8 +70,10 @@ def label_summary(rows: List[dict]) -> List[dict]:
 
 
 def _who(s: dict) -> str:
-    return "Scripted baseline" if s["agent"] == "baseline" else ("Open-first router" if s["agent"] == "router"
-                                                                  else s["profile"])
+    if s["agent"] == "baseline":
+        return "Scripted baseline"
+    # router runs are stored as agent "llm" with profile "router"
+    return "Open-first router" if "router" in (s["agent"], s["profile"]) else s["profile"]
 
 
 def results_markdown(store: Store, labels: Sequence[str], title: str = "NetProof results",
@@ -107,7 +109,7 @@ def results_markdown(store: Store, labels: Sequence[str], title: str = "NetProof
             lines.append(f"| {_who(s)} | {s['runs']} ({s['errors']}) | {_rate_ci(s['fixed'], s['n'])} "
                          f"| {_rate_ci(s['clean'], s['n'])} | {_frac(s['clean_at_heal'], s['healed_known'])} "
                          f"| {diag} | {cpf} |")
-        lines += ["", "| Agent | Unsafe attempts blocked by the gate | Rolled back by the verifier "
+        lines += ["", "| Agent | Plans refused by the gate | Rolled back by the verifier "
                   "| Runs that took the bait | Security policy intact | Escalated to Spark 1.3 |",
                   "| --- | --- | --- | --- | --- | --- |"]
         for s in summ:
