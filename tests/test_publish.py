@@ -6,7 +6,8 @@ import textwrap
 
 import pytest
 
-from netproof.publish import export_site, leaks, results_markdown, _transform_app, _transform_index
+from netproof.publish import (events_from_record, export_site, leaks, results_markdown, _transform_app,
+                              _transform_index)
 from netproof.store import Store
 
 
@@ -87,6 +88,40 @@ def test_export_site_can_count_complete_repeats_only(store, tmp_path):
     llm = next(r for r in sb["rows"] if r["agent"] == "llm")
     assert llm["runs"] == 1                                   # r2 (repeat 1) and r3 (repeat 2) left out
     assert {r["run_id"] for r in json.loads((out / "data" / "runs.json").read_text())} == {"r1"}
+
+
+def _tc(i, name, args):
+    return {"id": f"c{i}", "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+
+
+def test_events_rebuilt_from_a_run_record():
+    plan = {"device": "r-edge", "commands": ["x"], "rationale": "r", "expected_effect": "e", "rollback": [],
+            "blast_radius": ""}
+    rec_ = rec("r9", "FIXED_VERIFIED", "heldout-v1", flows_before={"f": False}, final_flow_ok={"f": True},
+               cleanup_enabled=True, drift_at_heal=1)
+    rec_["transcript"] = [
+        {"role": "system", "content": "s"}, {"role": "user", "content": "Trouble ticket: t"},
+        {"role": "assistant", "content": "looking", "tool_calls": [_tc(1, "show_routes", {"device": "r-edge"})]},
+        {"role": "tool", "tool_call_id": "c1", "content": "routes..."},
+        {"role": "assistant", "content": "", "tool_calls": [_tc(2, "submit_plan", {"plan": plan})]},
+        {"role": "tool", "tool_call_id": "c2", "content": "COMMITTED."},
+        {"role": "user", "content": "The network is now healthy and verified. These differences remain:\n"
+                                    "- r-edge: rule extra: -A FORWARD -j ACCEPT\nIf they are leftovers..."},
+        {"role": "assistant", "content": "DONE"},
+    ]
+    rec_["plans"] = [{"index": 0, "phase": "repair", "plan": plan, "root_cause": None,
+                      "result": {"outcome": "COMMITTED", "regressions": []}}]
+    ev = events_from_record(rec_)
+    assert [e["type"] for e in ev] == ["run_started", "flows", "model_call", "tool_call", "model_call",
+                                       "plan_submitted", "plan_result", "drift", "model_call", "flows",
+                                       "run_finished"]
+    assert [e["seq"] for e in ev] == list(range(1, 12))
+    assert ev[3]["data"] == {"step": 1, "tool": "show_routes", "args": {"device": "r-edge"}, "output": "routes..."}
+    assert ev[6]["data"]["outcome"] == "COMMITTED"
+    assert ev[7]["data"] == {"items": {"r-edge": ["rule extra: -A FORWARD -j ACCEPT"]}, "count": 1}
+    assert ev[0]["data"]["rebuilt_from_record"] is True and ev[-1]["data"]["outcome"] == "FIXED_VERIFIED"
+    assert events_from_record(dict(rec_, outcome="ERROR")) == []
+    assert events_from_record(dict(rec_, escalated=True)) == []
 
 
 def test_unknown_featured_run_is_an_error(store, tmp_path):

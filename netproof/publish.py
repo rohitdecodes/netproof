@@ -128,6 +128,82 @@ def results_markdown(store: Store, labels: Sequence[str], title: str = "NetProof
     return "\n".join(lines) + "\n"
 
 
+# ---------------------------------------------------------------- events rebuilt from run records
+# Runs started with `np eval` are saved as run records but do not write the dashboard's live event
+# stream. For the replay, that stream is rebuilt from the record: the same ticket, model text, tool
+# calls and outputs, plans and verdicts, in the order they happened. Nothing is invented.
+DRIFT_HEAD = "The network is now healthy and verified."
+RUN_FINISHED_KEYS = ("outcome", "plan_count", "steps", "cost_usd", "wall_seconds", "diagnosis_correct",
+                     "clean_fix", "residual_count", "residual_items", "ground_truth", "gate_rejections",
+                     "collateral_rollbacks", "unsafe_attempts", "trap_hits", "policy_intact", "escalated",
+                     "drift_at_heal", "error")
+
+
+def _drift_items(message: str) -> Dict[str, List[str]]:
+    """Inverse of agent.drift_message: '- node: item' lines back into {node: [items]}."""
+    items: Dict[str, List[str]] = defaultdict(list)
+    for line in message.splitlines()[1:]:
+        if line.startswith("- ") and ": " in line:
+            node, item = line[2:].split(": ", 1)
+            items[node].append(item)
+    return dict(items)
+
+
+def events_from_record(rec: dict) -> List[dict]:
+    """The dashboard event stream of a model run, rebuilt from its saved record.
+
+    Returns [] when the record cannot be replayed faithfully: errors, runs without a transcript,
+    and escalated router runs (two transcripts merged into one record).
+    """
+    transcript = rec.get("transcript") or []
+    if rec.get("outcome") == "ERROR" or not transcript or rec.get("escalated"):
+        return []
+    sc = rec.get("scenario") or {}
+    out: List[dict] = []
+
+    def add(type_: str, data: dict) -> None:
+        out.append({"seq": len(out) + 1, "ts": None, "type": type_, "data": data})
+
+    add("run_started", {"run_id": rec.get("run_id"), "agent": rec.get("agent"), "profile": rec.get("profile"),
+                        "model": rec.get("model"), "scenario_id": sc.get("scenario_id"),
+                        "fault_class": sc.get("fault_class"), "seed": sc.get("seed"), "split": rec.get("split"),
+                        "ticket": sc.get("ticket"), "reported_flow": sc.get("reported_flow"),
+                        "cleanup": rec.get("cleanup_enabled"), "rebuilt_from_record": True})
+    add("flows", {"stage": "before", "flows": rec.get("flows_before") or {}})
+    outputs = {m.get("tool_call_id"): m.get("content") or "" for m in transcript if m.get("role") == "tool"}
+    plans = list(rec.get("plans") or [])
+    step = 0
+    for m in transcript:
+        content = m.get("content") or ""
+        if m.get("role") == "user" and content.startswith(DRIFT_HEAD):
+            items = _drift_items(content)
+            add("drift", {"items": items, "count": sum(len(v) for v in items.values())})
+        if m.get("role") != "assistant":
+            continue
+        step += 1
+        add("model_call", {"step": step, "text": content[:800]})
+        for tc in m.get("tool_calls") or []:
+            name = tc["function"]["name"]
+            output = outputs.get(tc.get("id"), "")
+            try:
+                args = json.loads(tc["function"].get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = None
+            if not isinstance(args, dict):
+                add("tool_call", {"step": step, "tool": name, "args": {}, "output": output[:1500]})
+                continue
+            if name == "submit_plan" and plans and not output.startswith("ERROR"):
+                p = plans.pop(0)
+                add("plan_submitted", {"index": p["index"], "step": step, "phase": p.get("phase", "repair"),
+                                       "plan": p["plan"], "root_cause": p.get("root_cause")})
+                add("plan_result", {"index": p["index"], "phase": p.get("phase", "repair"), **p["result"]})
+            else:
+                add("tool_call", {"step": step, "tool": name, "args": args, "output": output[:1500]})
+    add("flows", {"stage": "final", "flows": rec.get("final_flow_ok") or {}})
+    add("run_finished", {k: rec.get(k) for k in RUN_FINISHED_KEYS})
+    return out
+
+
 # ---------------------------------------------------------------- static replay site
 REPLAY_CSS = """
 /* replay mode (hosted site) */
@@ -157,6 +233,8 @@ def _banner(featured: List[Tuple[str, str]]) -> str:
                       for rid, title in featured)
     return ('<div class="replay-banner"><p><strong>Read-only replay of recorded NetProof runs.</strong> '
             "Nothing here calls a model or touches a network; clone the repository to run the lab yourself. "
+            "Benchmark runs did not record a live event stream, so their timelines are rebuilt from the saved "
+            "run records: the same model text, tool calls, outputs, plans and verdicts, in order. "
             "Pick a featured run, any run on the left, or the Scoreboard tab.</p>" + buttons + "</div>")
 
 
@@ -229,6 +307,10 @@ def export_site(store: Store, out_dir: Path, labels: Sequence[str] = (), replay_
     for rid in run_ids:
         row = store.get_run(rid)
         events = [e for e in store.events(rid) if e["type"] != "saved"]
+        rebuilt = False
+        if not events and row.get("record_path") and Path(row["record_path"]).exists():
+            events = events_from_record(json.loads(Path(row["record_path"]).read_text(encoding="utf-8")))
+            rebuilt = bool(events)
         if not events:
             continue
         _write_json(data / "events" / f"{rid}.json", events)
@@ -239,6 +321,7 @@ def export_site(store: Store, out_dir: Path, labels: Sequence[str] = (), replay_
                                                          encoding="utf-8", newline="\n")
         clean = {k: v for k, v in row.items() if k not in PRIVATE_COLUMNS}
         clean["featured_title"] = titles.get(rid)
+        clean["events_rebuilt_from_record"] = rebuilt
         rows_out.append(clean)
     _write_json(data / "runs.json", rows_out)
 
