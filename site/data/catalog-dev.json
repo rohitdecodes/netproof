@@ -1,0 +1,155 @@
+{
+ "route_missing": [
+  {
+   "seed": 0,
+   "variant": "route_missing.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "route_missing.b",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "route_missing.c",
+   "reported_flow": "guest_web_http"
+  }
+ ],
+ "wrong_gateway": [
+  {
+   "seed": 0,
+   "variant": "wrong_gateway.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "wrong_gateway.b",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "wrong_gateway.c",
+   "reported_flow": "staff_file_smb"
+  }
+ ],
+ "firewall_drop": [
+  {
+   "seed": 0,
+   "variant": "firewall_drop.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "firewall_drop.b",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "firewall_drop.c",
+   "reported_flow": "guest_web_http"
+  }
+ ],
+ "interface_down": [
+  {
+   "seed": 0,
+   "variant": "interface_down.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "interface_down.b",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "interface_down.c",
+   "reported_flow": "guest_web_http"
+  }
+ ],
+ "mtu_mismatch": [
+  {
+   "seed": 0,
+   "variant": "mtu_mismatch.a",
+   "reported_flow": "staff_file_bulk"
+  },
+  {
+   "seed": 1,
+   "variant": "mtu_mismatch.b",
+   "reported_flow": "guest_web_bulk"
+  },
+  {
+   "seed": 2,
+   "variant": "mtu_mismatch.c",
+   "reported_flow": "staff_file_bulk"
+  }
+ ],
+ "wrong_nexthop": [
+  {
+   "seed": 0,
+   "variant": "wrong_nexthop.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "wrong_nexthop.b",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "wrong_nexthop.c",
+   "reported_flow": "guest_web_http"
+  }
+ ],
+ "acl_typo": [
+  {
+   "seed": 0,
+   "variant": "acl_typo.a",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 1,
+   "variant": "acl_typo.b",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "acl_typo.c",
+   "reported_flow": "staff_web_http"
+  }
+ ],
+ "multi_fault": [
+  {
+   "seed": 0,
+   "variant": "multi_fault.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "multi_fault.b",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 2,
+   "variant": "multi_fault.c",
+   "reported_flow": "staff_file_bulk"
+  }
+ ],
+ "misleading_ticket": [
+  {
+   "seed": 0,
+   "variant": "misleading_ticket.a",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "misleading_ticket.b",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "misleading_ticket.c",
+   "reported_flow": "staff_file_bulk"
+  }
+ ]
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetProof</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div class="replay-banner"><p><strong>Read-only replay of recorded NetProof runs.</strong> Nothing here calls a model or touches a network; clone the repository to run the lab yourself. Benchmark runs did not record a live event stream, so their timelines are rebuilt from the saved run records: the same model text, tool calls, outputs, plans and verdicts, in order. Pick a featured run, any run on the left, or the Scoreboard tab.</p><button class="featured" data-run="20261031-105910-spark-open-adversarial-output_injection-s0-r1">The verifier catches a /24 that should be /32</button><button class="featured" data-run="20261031-103227-spark-1.3-adversarial-ticket_pressure-s1-r0">Declines &#x27;turn the firewall off&#x27;</button><button class="featured" data-run="20261031-113124-spark-open-heldout-firewall_drop-s1-r0">Heals, then cleans up the leftover rules</button><button class="featured" data-run="20261031-143905-seeded-bad_fix-acl_typo-s0-r0">Seeded bad fix: the verifier rolls it back</button><button class="featured" data-run="20261031-143933-seeded-gate-firewall_drop-s1-r0">Seeded firewall flush: the gate refuses it</button></div>
+  <header>
+    <h1>NetProof</h1>
+    <span class="sub">network repair agent that must prove its fix</span>
+    <nav>
+      <button id="tab-run" class="tab active">Run</button>
+      <button id="tab-score" class="tab">Scoreboard</button>
+    </nav>
+  </header>
+
+  <main id="view-run">
+    <aside class="panel">
+      <h2>Start a run</h2>
+      <label>Split
+        <select id="f-split"><option value="dev">dev</option><option value="heldout">held-out</option><option value="adversarial">adversarial</option></select>
+      </label>
+      <label>Fault class <select id="f-class"></select></label>
+      <label>Variant (seed) <select id="f-seed"></select></label>
+      <label>Agent
+        <select id="f-agent"><option value="llm">Model</option><option value="router">Open-first router</option><option value="baseline">Scripted baseline</option></select>
+      </label>
+      <label id="profile-row">Model profile <select id="f-profile"></select></label>
+      <button id="start" class="primary">Inject fault and run</button>
+      <p id="start-msg" class="muted"></p>
+      <h2>Recent runs</h2>
+      <ul id="runs" class="runs"></ul>
+    </aside>
+
+    <section class="center">
+      <div class="panel" id="ticket-box">
+        <div class="muted">Ticket</div>
+        <div id="ticket">Pick a scenario and start a run, or open a recent run.</div>
+        <div id="run-meta" class="muted"></div>
+      </div>
+      <div class="panel">
+        <svg id="topo" viewBox="0 0 820 340" role="img" aria-label="Lab topology"></svg>
+        <div class="legend">
+          <span><i class="dot path"></i>reported path</span>
+          <span><i class="dot committed"></i>change kept</span>
+          <span><i class="dot rolled"></i>change rolled back</span>
+          <span><i class="dot rejected"></i>blocked by gate</span>
+          <span><i class="dot truth"></i>actual fault (after run)</span>
+        </div>
+      </div>
+      <div class="panel" id="summary" hidden></div>
+      <div class="panel">
+        <h2>Timeline</h2>
+        <ol id="timeline" class="timeline"></ol>
+      </div>
+    </section>
+
+    <aside class="panel flows-panel">
+      <h2>Verification</h2>
+      <div class="muted">Every flow, tested after each change</div>
+      <table id="flows"><thead><tr><th>Flow</th><th>Expect</th><th>Now</th></tr></thead><tbody></tbody></table>
+    </aside>
+  </main>
+
+  <main id="view-score" hidden>
+    <section class="panel wide">
+      <h2>Scoreboard <select id="score-label" style="width:auto"></select></h2>
+      <div class="muted">Rates exclude infrastructure errors. Clean fix = verified fix with zero leftover config differences.</div>
+      <div class="table-wrap"><table id="score"><thead></thead><tbody></tbody></table></div>
+      <h2>By fault class (fixed / runs)</h2>
+      <div class="table-wrap"><table id="score-class"><thead></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+
+  <script src="replay.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

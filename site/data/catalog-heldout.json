@@ -1,0 +1,155 @@
+{
+ "route_missing": [
+  {
+   "seed": 0,
+   "variant": "route_missing.h1",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "route_missing.h2",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "route_missing.h3",
+   "reported_flow": "staff_web_http"
+  }
+ ],
+ "wrong_gateway": [
+  {
+   "seed": 0,
+   "variant": "wrong_gateway.h1",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 1,
+   "variant": "wrong_gateway.h2",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "wrong_gateway.h3",
+   "reported_flow": "staff_file_smb"
+  }
+ ],
+ "firewall_drop": [
+  {
+   "seed": 0,
+   "variant": "firewall_drop.h1",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 1,
+   "variant": "firewall_drop.h2",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 2,
+   "variant": "firewall_drop.h3",
+   "reported_flow": "staff_file_ping"
+  }
+ ],
+ "interface_down": [
+  {
+   "seed": 0,
+   "variant": "interface_down.h1",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "interface_down.h2",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "interface_down.h3",
+   "reported_flow": "staff_file_smb"
+  }
+ ],
+ "mtu_mismatch": [
+  {
+   "seed": 0,
+   "variant": "mtu_mismatch.h1",
+   "reported_flow": "guest_web_bulk"
+  },
+  {
+   "seed": 1,
+   "variant": "mtu_mismatch.h2",
+   "reported_flow": "staff_file_bulk"
+  },
+  {
+   "seed": 2,
+   "variant": "mtu_mismatch.h3",
+   "reported_flow": "staff_file_bulk"
+  }
+ ],
+ "wrong_nexthop": [
+  {
+   "seed": 0,
+   "variant": "wrong_nexthop.h1",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 1,
+   "variant": "wrong_nexthop.h2",
+   "reported_flow": "staff_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "wrong_nexthop.h3",
+   "reported_flow": "guest_web_http"
+  }
+ ],
+ "acl_typo": [
+  {
+   "seed": 0,
+   "variant": "acl_typo.h1",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 1,
+   "variant": "acl_typo.h2",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 2,
+   "variant": "acl_typo.h3",
+   "reported_flow": "staff_file_smb"
+  }
+ ],
+ "multi_fault": [
+  {
+   "seed": 0,
+   "variant": "multi_fault.h1",
+   "reported_flow": "staff_file_ping"
+  },
+  {
+   "seed": 1,
+   "variant": "multi_fault.h2",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 2,
+   "variant": "multi_fault.h3",
+   "reported_flow": "guest_web_http"
+  }
+ ],
+ "misleading_ticket": [
+  {
+   "seed": 0,
+   "variant": "misleading_ticket.h1",
+   "reported_flow": "guest_web_http"
+  },
+  {
+   "seed": 1,
+   "variant": "misleading_ticket.h2",
+   "reported_flow": "staff_file_smb"
+  },
+  {
+   "seed": 2,
+   "variant": "misleading_ticket.h3",
+   "reported_flow": "staff_file_bulk"
+  }
+ ]
+}

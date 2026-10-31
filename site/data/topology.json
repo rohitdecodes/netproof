@@ -1,0 +1,169 @@
+{
+ "nodes": [
+  {
+   "name": "pc-staff",
+   "role": "host",
+   "interfaces": {
+    "staff": "10.10.1.10"
+   }
+  },
+  {
+   "name": "pc-guest",
+   "role": "host",
+   "interfaces": {
+    "guest": "10.10.2.10"
+   }
+  },
+  {
+   "name": "fileserver",
+   "role": "host",
+   "interfaces": {
+    "server": "10.10.3.10"
+   }
+  },
+  {
+   "name": "webserver",
+   "role": "host",
+   "interfaces": {
+    "server": "10.10.3.20"
+   }
+  },
+  {
+   "name": "r-edge",
+   "role": "router",
+   "interfaces": {
+    "staff": "10.10.1.1",
+    "guest": "10.10.2.1",
+    "transit": "10.10.9.1"
+   }
+  },
+  {
+   "name": "r-core",
+   "role": "router",
+   "interfaces": {
+    "transit": "10.10.9.2",
+    "server": "10.10.3.1"
+   }
+  }
+ ],
+ "networks": {
+  "staff": {
+   "subnet": "10.10.1.0/24"
+  },
+  "guest": {
+   "subnet": "10.10.2.0/24"
+  },
+  "server": {
+   "subnet": "10.10.3.0/24"
+  },
+  "transit": {
+   "subnet": "10.10.9.0/24"
+  }
+ },
+ "flows": [
+  {
+   "id": "staff_file_smb",
+   "src": "pc-staff",
+   "dst": "fileserver",
+   "proto": "tcp",
+   "port": 445,
+   "expect": "allow"
+  },
+  {
+   "id": "staff_web_http",
+   "src": "pc-staff",
+   "dst": "webserver",
+   "proto": "tcp",
+   "port": 80,
+   "expect": "allow"
+  },
+  {
+   "id": "staff_file_ping",
+   "src": "pc-staff",
+   "dst": "fileserver",
+   "proto": "icmp",
+   "port": null,
+   "expect": "allow"
+  },
+  {
+   "id": "staff_web_ping",
+   "src": "pc-staff",
+   "dst": "webserver",
+   "proto": "icmp",
+   "port": null,
+   "expect": "allow"
+  },
+  {
+   "id": "guest_web_http",
+   "src": "pc-guest",
+   "dst": "webserver",
+   "proto": "tcp",
+   "port": 80,
+   "expect": "allow"
+  },
+  {
+   "id": "staff_file_bulk",
+   "src": "pc-staff",
+   "dst": "fileserver",
+   "proto": "tcp-bulk",
+   "port": 445,
+   "expect": "allow"
+  },
+  {
+   "id": "guest_web_bulk",
+   "src": "pc-guest",
+   "dst": "webserver",
+   "proto": "tcp-bulk",
+   "port": 80,
+   "expect": "allow"
+  },
+  {
+   "id": "guest_file_smb",
+   "src": "pc-guest",
+   "dst": "fileserver",
+   "proto": "tcp",
+   "port": 445,
+   "expect": "deny"
+  },
+  {
+   "id": "guest_file_http",
+   "src": "pc-guest",
+   "dst": "fileserver",
+   "proto": "tcp",
+   "port": 80,
+   "expect": "deny"
+  },
+  {
+   "id": "guest_file_ping",
+   "src": "pc-guest",
+   "dst": "fileserver",
+   "proto": "icmp",
+   "port": null,
+   "expect": "deny"
+  },
+  {
+   "id": "guest_web_ping",
+   "src": "pc-guest",
+   "dst": "webserver",
+   "proto": "icmp",
+   "port": null,
+   "expect": "deny"
+  },
+  {
+   "id": "guest_staff_ping",
+   "src": "pc-guest",
+   "dst": "pc-staff",
+   "proto": "icmp",
+   "port": null,
+   "expect": "deny"
+  },
+  {
+   "id": "guest_staff_tcp",
+   "src": "pc-guest",
+   "dst": "pc-staff",
+   "proto": "tcp",
+   "port": 8080,
+   "expect": "deny"
+  }
+ ]
+}
