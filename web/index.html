@@ -8,50 +8,74 @@
   <link rel="icon" href="data:,">
 </head>
 <body>
-  <header>
-    <h1>NetProof</h1>
-    <span class="sub">network repair agent that must prove its fix</span>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">NP</span>
+      <div>
+        <h1>NetProof</h1>
+        <div class="sub">An AI agent that repairs network faults, and keeps a change only when tests prove it worked</div>
+      </div>
+    </div>
     <nav>
-      <button id="tab-run" class="tab active">Run</button>
-      <button id="tab-score" class="tab">Scoreboard</button>
+      <button id="tab-run" class="tab active">Runs</button>
+      <button id="tab-score" class="tab">Results</button>
     </nav>
   </header>
 
   <main id="view-run">
-    <aside class="panel">
-      <h2>Start a run</h2>
-      <label>Split
-        <select id="f-split"><option value="dev">dev</option><option value="heldout">held-out</option><option value="adversarial">adversarial</option></select>
-      </label>
-      <label>Fault class <select id="f-class"></select></label>
-      <label>Variant (seed) <select id="f-seed"></select></label>
-      <label>Agent
-        <select id="f-agent"><option value="llm">Model</option><option value="router">Open-first router</option><option value="baseline">Scripted baseline</option></select>
-      </label>
-      <label id="profile-row">Model profile <select id="f-profile"></select></label>
-      <button id="start" class="primary">Inject fault and run</button>
-      <p id="start-msg" class="muted"></p>
-      <h2>Recent runs</h2>
-      <ul id="runs" class="runs"></ul>
+    <aside class="col-left">
+      <section class="panel" id="start-panel">
+        <h2>Start a run</h2>
+        <label>Split
+          <select id="f-split"><option value="dev">dev</option><option value="heldout">held-out</option><option value="adversarial">adversarial</option></select>
+        </label>
+        <label>Fault class <select id="f-class"></select></label>
+        <label>Variant (seed) <select id="f-seed"></select></label>
+        <label>Agent
+          <select id="f-agent"><option value="llm">Model</option><option value="router">Open-first router</option><option value="baseline">Scripted runbook (no model)</option></select>
+        </label>
+        <label id="profile-row">Model profile <select id="f-profile"></select></label>
+        <button id="start" class="primary">Inject fault and run</button>
+        <p id="start-msg" class="msg"></p>
+      </section>
+      <section class="panel" id="demo-panel">
+        <h2>Safety demos</h2>
+        <p class="hint">Seeded: a fixed unsafe plan is submitted directly. No model, no cost.</p>
+        <button class="secondary" data-demo="bad_fix" data-fault="acl_typo" data-seed="0">Bad fix: verifier rolls it back</button>
+        <button class="secondary" data-demo="gate" data-fault="firewall_drop" data-seed="1">Firewall flush: gate refuses it</button>
+      </section>
+      <section class="panel runs-panel">
+        <h2>Recent runs</h2>
+        <ul id="runs" class="runs"></ul>
+      </section>
     </aside>
 
     <section class="center">
-      <div class="panel" id="ticket-box">
-        <div class="muted">Ticket</div>
-        <div id="ticket">Pick a scenario and start a run, or open a recent run.</div>
-        <div id="run-meta" class="muted"></div>
+      <div class="panel ticket-panel" id="ticket-box">
+        <div class="eyebrow">Trouble ticket</div>
+        <div id="ticket">Pick a run on the left, or start one.</div>
+        <div id="run-meta" class="meta"></div>
+        <div id="player" class="player" hidden>
+          <button id="pl-play" class="pbtn">Pause</button>
+          <button id="pl-restart" class="pbtn">Restart</button>
+          <button id="pl-end" class="pbtn">Skip to end</button>
+          <label class="speed">Speed
+            <select id="pl-speed"><option value="0.5">0.5x</option><option value="1">1x</option><option value="2" selected>2x</option><option value="4">4x</option></select>
+          </label>
+          <div class="progress"><div id="pl-bar"></div></div>
+        </div>
       </div>
-      <div class="panel">
+      <div class="panel" id="summary" hidden></div>
+      <div class="panel topo-panel">
         <svg id="topo" viewBox="0 0 820 340" role="img" aria-label="Lab topology"></svg>
         <div class="legend">
           <span><i class="dot path"></i>reported path</span>
           <span><i class="dot committed"></i>change kept</span>
           <span><i class="dot rolled"></i>change rolled back</span>
-          <span><i class="dot rejected"></i>blocked by gate</span>
-          <span><i class="dot truth"></i>actual fault (after run)</span>
+          <span><i class="dot rejected"></i>refused by gate</span>
+          <span><i class="dot truth"></i>actual fault (shown after the run)</span>
         </div>
       </div>
-      <div class="panel" id="summary" hidden></div>
       <div class="panel">
         <h2>Timeline</h2>
         <ol id="timeline" class="timeline"></ol>
@@ -60,21 +84,39 @@
 
     <aside class="panel flows-panel">
       <h2>Verification</h2>
-      <div class="muted">Every flow, tested after each change</div>
-      <table id="flows"><thead><tr><th>Flow</th><th>Expect</th><th>Now</th></tr></thead><tbody></tbody></table>
+      <p class="hint">All 13 flows are re-tested after every change. A change is kept only if it fixes something and breaks nothing.</p>
+      <div id="flows"></div>
     </aside>
   </main>
 
   <main id="view-score" hidden>
-    <section class="panel wide">
-      <h2>Scoreboard <select id="score-label" style="width:auto"></select></h2>
-      <div class="muted">Rates exclude infrastructure errors. Clean fix = verified fix with zero leftover config differences.</div>
-      <div class="table-wrap"><table id="score"><thead></thead><tbody></tbody></table></div>
-      <h2>By fault class (fixed / runs)</h2>
-      <div class="table-wrap"><table id="score-class"><thead></thead><tbody></tbody></table></div>
+    <section class="panel score-head">
+      <div>
+        <h2>Results</h2>
+        <p class="hint">Computed from recorded runs. Rates exclude infrastructure errors. Intervals are 95% Wilson intervals.</p>
+      </div>
+      <label class="pick">Benchmark <select id="score-label"></select></label>
+    </section>
+    <section class="panel">
+      <h3>Fixed and verified</h3>
+      <div id="score-chart" class="chart"></div>
+    </section>
+    <section class="panel">
+      <h3>Outcomes</h3>
+      <div class="table-wrap"><table id="score" class="data"><thead></thead><tbody></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h3>Safety</h3>
+      <p class="hint">Gate refusals count every plan the gate refused, including safe commands written with an option outside its allow-list.</p>
+      <div class="table-wrap"><table id="score-safety" class="data"><thead></thead><tbody></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h3>By fault class (fixed / runs)</h3>
+      <div class="table-wrap"><table id="score-class" class="data"><thead></thead><tbody></tbody></table></div>
     </section>
   </main>
 
+  <div id="tip" class="tip" hidden></div>
   <script src="/static/app.js"></script>
 </body>
 </html>

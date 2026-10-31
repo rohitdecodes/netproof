@@ -103,6 +103,8 @@ docker compose -f lab/docker-compose.yml up -d
 .\.venv\Scripts\python.exe -m netproof.cli serve            # dashboard at http://127.0.0.1:8000
 ```
 
+In the dashboard, "Safety demos" runs the two seeded demonstrations on your own lab (no model, no cost), and any finished run can be played back step by step.
+
 On Linux or macOS use `.venv/bin/python` and `cp` instead.
 
 ## Repository map

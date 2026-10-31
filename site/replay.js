@@ -42,8 +42,17 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add("replay");
-    document.querySelectorAll("button.featured[data-run]").forEach((b) => {
-      b.addEventListener("click", () => window.openRun && window.openRun(b.dataset.run));
+    const buttons = [...document.querySelectorAll("button.featured[data-run]")];
+    buttons.forEach((b) => {
+      b.addEventListener("click", () => {
+        buttons.forEach((x) => x.classList.toggle("active", x === b));
+        if (window.openRun) window.openRun(b.dataset.run);
+      });
     });
+  });
+  // once the dashboard has loaded, start playing the first featured run
+  document.addEventListener("netproof-ready", () => {
+    const first = document.querySelector("button.featured[data-run]");
+    if (first) first.click();
   });
 })();

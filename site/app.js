@@ -1,11 +1,12 @@
 "use strict";
-// NetProof dashboard. Polls the API; the same code renders live runs and replays finished ones.
+// NetProof dashboard. Polls the API; the same code renders live runs and plays back finished ones.
 
 const POS = {
   "pc-staff": [90, 80], "pc-guest": [90, 260], "r-edge": [320, 170],
   "r-core": [520, 170], "fileserver": [730, 80], "webserver": [730, 260],
 };
-const S = { topo: null, flows: [], catalog: {}, runId: null, after: 0, timer: null, planItems: {}, changed: null };
+const S = { topo: null, flows: [], catalog: {}, runId: null, after: 0, timer: null, planItems: {}, changed: null,
+            live: false, queue: [], qi: 0, playing: false, playTimer: null, speed: 2 };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -16,6 +17,20 @@ async function api(path, opts) {
   const t = r.headers.get("content-type") || "";
   return t.includes("json") ? r.json() : r.text();
 }
+
+// ---------------------------------------------------------------- names
+const PROFILE_NAMES = { "spark-1.3": "Muse Spark 1.3", "spark-1.2": "Muse Spark 1.2", "spark-open": "Muse Spark Open",
+                        "router": "Open-first router", "glimmer": "Muse Glimmer" };
+function whoName(agent, profile) {
+  if (agent === "baseline") return "Scripted runbook";
+  if (agent === "seeded") return "Seeded demo, no model";
+  if (agent === "router" || profile === "router") return "Open-first router";
+  return PROFILE_NAMES[profile] || profile || agent || "-";
+}
+const OUTCOME_TEXT = { FIXED_VERIFIED: "Fixed and verified", ROLLED_BACK_COLLATERAL: "Rolled back", REJECTED_BY_GATE: "Refused by the gate",
+                       ROLLED_BACK_NO_EFFECT: "Not fixed", BUDGET_EXHAUSTED: "Not fixed (budget used up)", ERROR: "Infrastructure error" };
+const flowById = (id) => S.flows.find((f) => f.id === id);
+const flowPath = (f) => f ? `${f.src} → ${f.dst} ${f.proto}${f.port ? "/" + f.port : ""}` : "";
 
 // ---------------------------------------------------------------- topology
 function adjacency() {
@@ -60,24 +75,24 @@ function drawTopology() {
       seen.add(key);
       const [x1, y1] = POS[r] || [0, 0], [x2, y2] = POS[m] || [0, 0];
       links += `<line class="link" data-a="${r}" data-b="${m}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-      labels += `<text class="netlabel" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 8}">${esc(net)} ${esc(info.subnet)}</text>`;
+      labels += `<text class="netlabel" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 9}">${esc(net)} ${esc(info.subnet)}</text>`;
     }
   }
   for (const n of S.topo.nodes) {
     const [x, y] = POS[n.name] || [60, 60];
     const ips = Object.values(n.interfaces).join("  ");
     nodes += `<g class="node" id="node-${n.name}" transform="translate(${x},${y})">
-      <rect x="-62" y="-26" width="124" height="52"></rect>
+      <rect x="-64" y="-27" width="128" height="54"></rect>
       <text y="-4">${esc(n.name)}</text>
-      <text class="ip" y="12">${esc(ips.length > 26 ? ips.slice(0, 26) + "..." : ips)}</text>
-      <text class="truthmark" y="40">actual fault</text></g>`;
+      <text class="ip" y="13">${esc(ips.length > 26 ? ips.slice(0, 26) + "..." : ips)}</text>
+      <text class="truthmark" y="43">actual fault</text></g>`;
   }
   svg.innerHTML = links + labels + nodes;
 }
 
 function highlightPath(flowId) {
   document.querySelectorAll(".link").forEach((l) => l.classList.remove("path"));
-  const f = S.flows.find((x) => x.id === flowId);
+  const f = flowById(flowId);
   if (!f) return;
   const p = pathNodes(f.src, f.dst);
   for (let i = 0; i + 1 < p.length; i++) {
@@ -95,69 +110,110 @@ function markNode(name, cls) {
   if (cls) g.classList.add(cls);
 }
 
-// ---------------------------------------------------------------- flows table
+// ---------------------------------------------------------------- verification panel
 function renderFlows(state, changed) {
-  const tb = $("flows").querySelector("tbody");
-  tb.innerHTML = S.flows.map((f) => {
+  const group = (title, flows) => `<div class="fgroup"><h4>${title} (${flows.length})</h4>` + flows.map((f) => {
     const ok = state ? state[f.id] : undefined;
-    const cell = ok === undefined ? "<td>-</td>" : ok ? '<td class="ok">ok</td>' : '<td class="bad">FAIL</td>';
-    const port = f.port ? "/" + f.port : "";
-    return `<tr class="${changed && changed.has(f.id) ? "changed" : ""}" title="${esc(f.src)} -> ${esc(f.dst)} ${esc(f.proto)}${port}">
-      <td>${esc(f.id)}</td><td>${esc(f.expect)}</td>${cell}</tr>`;
-  }).join("");
+    const allow = f.expect === "allow";
+    let chip = '<span class="chip idle">not tested</span>';
+    if (ok !== undefined) {
+      chip = allow ? (ok ? '<span class="chip good">works</span>' : '<span class="chip bad">broken</span>')
+                   : (ok ? '<span class="chip good">blocked</span>' : '<span class="chip bad">OPEN</span>');
+    }
+    return `<div class="frow ${changed && changed.has(f.id) ? "changed" : ""}">
+      <div><div class="fid">${esc(f.id)}</div><div class="fpath">${esc(flowPath(f))}</div></div>${chip}</div>`;
+  }).join("") + "</div>";
+  $("flows").innerHTML = group("Must work", S.flows.filter((f) => f.expect === "allow")) +
+                         group("Must stay blocked", S.flows.filter((f) => f.expect !== "allow"));
 }
 
 // ---------------------------------------------------------------- timeline
-function addItem(cls, head, body) {
+function addItem(tag, tagCls, body) {
   const li = document.createElement("li");
-  li.className = cls;
-  li.innerHTML = `<div class="head">${head}</div>${body || ""}`;
+  li.innerHTML = `<span class="tag ${tagCls}">${esc(tag)}</span><div class="body">${body}</div>`;
   $("timeline").appendChild(li);
-  li.scrollIntoView({ block: "nearest" });
+  const box = $("timeline");
+  box.scrollTop = box.scrollHeight;
   return li;
 }
 
-const OUTCOME_CLASS = { COMMITTED: "ok", REJECTED_BY_GATE: "bad", ROLLED_BACK_COLLATERAL: "warn", ROLLED_BACK_NO_EFFECT: "warn" };
+function fmtArgs(args) {
+  return Object.entries(args || {}).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ");
+}
+
+function longText(text, limit = 260) {
+  if (text.length <= limit) return `<div class="note">${esc(text)}</div>`;
+  return `<div class="note">${esc(text.slice(0, limit))}...</div><details><summary>full text</summary><pre>${esc(text)}</pre></details>`;
+}
+
+const STAGE_HTML = {
+  REJECTED_BY_GATE: '<span class="stage bad"><b>Gate</b> refused</span><span class="stage skip"><b>Verifier</b> not reached, nothing changed</span>',
+  ROLLED_BACK_COLLATERAL: '<span class="stage ok"><b>Gate</b> allowed</span><span class="stage warn"><b>Verifier</b> rolled back: it broke other flows</span>',
+  ROLLED_BACK_NO_EFFECT: '<span class="stage ok"><b>Gate</b> allowed</span><span class="stage warn"><b>Verifier</b> rolled back: nothing improved</span>',
+  COMMITTED: '<span class="stage ok"><b>Gate</b> allowed</span><span class="stage ok"><b>Verifier</b> kept: it fixed something and broke nothing</span>',
+};
 const NODE_CLASS = { COMMITTED: "committed", REJECTED_BY_GATE: "rejected", ROLLED_BACK_COLLATERAL: "rolled", ROLLED_BACK_NO_EFFECT: "rolled" };
+const TAG_CLASS = { COMMITTED: "ok", REJECTED_BY_GATE: "bad", ROLLED_BACK_COLLATERAL: "warn", ROLLED_BACK_NO_EFFECT: "warn" };
 
 function applyEvent(ev) {
   const d = ev.data;
   switch (ev.type) {
-    case "run_started":
+    case "run_started": {
       $("ticket").textContent = d.ticket;
-      $("run-meta").textContent = `${d.run_id} | ${d.agent === "baseline" ? "scripted baseline" : d.agent === "seeded" ? "seeded demonstration, no model (" + d.profile + ")" : d.profile + " (" + d.model + ")"} | reported flow: ${d.reported_flow}`;
+      const f = flowById(d.reported_flow);
+      const seeded = d.agent === "seeded" ? ' <span class="badge b-seeded">seeded demo, no model</span>' : "";
+      const rebuilt = d.rebuilt_from_record ? " · timeline rebuilt from the run record" : "";
+      $("run-meta").innerHTML = `${esc(whoName(d.agent, d.profile))}${d.model ? " (" + esc(d.model) + ")" : ""} · reported flow: ${esc(d.reported_flow)} ${f ? "(" + esc(flowPath(f)) + ")" : ""}${seeded}<br>${esc(d.run_id)}${rebuilt}`;
       highlightPath(d.reported_flow);
       break;
+    }
     case "flows": {
       renderFlows(d.flows, d.stage === "final" ? S.changed : null);  // keep the last plan's highlight
-      if (d.stage === "before") addItem("", "Fault injected", `<div class="muted">${Object.values(d.flows).filter((x) => !x).length} flows failing</div>`);
+      if (d.stage === "before") {
+        const failing = Object.entries(d.flows).filter(([, v]) => !v).map(([k]) => k);
+        addItem("Fault", "bad", `<div class="head">Fault injected: ${failing.length} of ${Object.keys(d.flows).length} flows fail</div><div class="note">${esc(failing.join(", "))}</div>`);
+      }
       break;
     }
     case "model_call":
-      if (d.text) addItem("", `Model step ${d.step}`, `<details><summary>reasoning shown to the user</summary><pre>${esc(d.text)}</pre></details>`);
+      if (d.text) addItem("Model", "think", longText(d.text));
       break;
     case "tool_call": {
-      const args = Object.entries(d.args || {}).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ");
-      addItem("", `${esc(d.tool)}(${esc(args)})`, `<details><summary>output</summary><pre>${esc(d.output)}</pre></details>`);
+      if (d.tool === "note_hypothesis") {
+        const a = d.args || {};
+        addItem("Hypothesis", "think", `<div class="head">${esc(a.hypothesis || "")}</div>${a.status ? `<div class="note">status: ${esc(a.status)}</div>` : ""}`);
+      } else if (d.tool === "submit_plan") {
+        addItem("Plan", "bad", `<div class="head">Plan not accepted</div><pre>${esc(d.output)}</pre>`);
+      } else {
+        addItem("Look", "", `<div class="tool">${esc(d.tool)} <span class="args">${esc(fmtArgs(d.args))}</span></div>
+          <details><summary>output</summary><pre>${esc(d.output)}</pre></details>`);
+      }
       break;
     }
     case "plan_submitted": {
-      const rc = d.root_cause ? `<div class="muted">root cause: ${esc(d.root_cause.device)} / ${esc(d.root_cause.fault_class)}: ${esc(d.root_cause.summary)}</div>` : "";
-      const tag = `${d.phase === "cleanup" ? " (cleanup)" : ""}${d.profile ? " [" + esc(d.profile) + "]" : ""}`;
-      S.planItems[d.index] = addItem("plan", `Plan ${d.index + 1}${tag} on ${esc(d.plan.device)}`, `${rc}<pre>${esc(d.plan.commands.join("\n"))}</pre><div class="verdict muted">checking...</div>`);
+      const rc = d.root_cause ? `<div class="rc">Root cause: <b>${esc(d.root_cause.device)} / ${esc(d.root_cause.fault_class)}</b>. ${esc(d.root_cause.summary)}</div>` : "";
+      const why = d.plan.rationale ? longText(d.plan.rationale, 220) : "";
+      const what = `${d.phase === "cleanup" ? "Cleanup plan" : "Plan"} ${d.index + 1} on ${esc(d.plan.device)}${d.profile ? " [" + esc(whoName("llm", d.profile)) + "]" : ""}`;
+      S.planItems[d.index] = addItem(d.phase === "cleanup" ? "Cleanup" : "Plan", "plan",
+        `<div class="head">${what}</div>${rc}${why}<pre class="cmds">${esc(d.plan.commands.join("\n"))}</pre>
+         <div class="stages"><span class="stage"><b>Gate</b> checking...</span></div><div class="stage-detail"></div>`);
+      S.planItems[d.index].dataset.device = d.plan.device;
       break;
     }
     case "plan_result": {
       const li = S.planItems[d.index];
-      const cls = OUTCOME_CLASS[d.outcome] || "";
-      let txt = `<span class="badge b-${cls === "ok" ? "ok" : cls === "bad" ? "bad" : "warn"}">${esc(d.outcome)}</span>`;
-      if (d.gate_violations && d.gate_violations.length) txt += `<pre>${esc(d.gate_violations.join("\n"))}</pre>`;
-      if (d.regressions && d.regressions.length) txt += `<div>broke: ${esc(d.regressions.join(", "))} (rolled back, device restored: ${d.restored_ok ? "yes" : "NO"})</div>`;
-      if (d.improvements && d.improvements.length) txt += `<div>fixed: ${esc(d.improvements.join(", "))}</div>`;
-      if (d.apply_errors && d.apply_errors.length) txt += `<pre>${esc(d.apply_errors.join("\n"))}</pre>`;
-      if (li) { li.classList.add(cls); li.querySelector(".verdict").innerHTML = txt; }
-      const dev = li ? li.querySelector(".head").textContent.split(" on ").pop() : null;
-      if (dev) markNode(dev, NODE_CLASS[d.outcome]);
+      if (li) {
+        li.querySelector(".tag").className = "tag " + (TAG_CLASS[d.outcome] || "");
+        li.querySelector(".stages").innerHTML = STAGE_HTML[d.outcome] || `<span class="stage">${esc(d.outcome)}</span>`;
+        const parts = [];
+        if (d.gate_violations && d.gate_violations.length) parts.push(`<pre>${esc(d.gate_violations.join("\n"))}</pre>`);
+        if (d.regressions && d.regressions.length) parts.push(`<div><span class="x">Broke:</span> ${esc(d.regressions.join(", "))}. Device restored: ${d.restored_ok ? "yes" : "NO"}.</div>`);
+        if (d.improvements && d.improvements.length) parts.push(`<div><span class="y">${d.outcome === "COMMITTED" ? "Fixed" : "Would have fixed"}:</span> ${esc(d.improvements.join(", "))}</div>`);
+        if (d.cleanup && d.drift_before !== null && d.drift_before !== undefined) parts.push(`<div>Leftover differences: ${d.drift_before} → ${d.drift_after ?? d.drift_before}</div>`);
+        if (d.apply_errors && d.apply_errors.length) parts.push(`<pre>${esc(d.apply_errors.join("\n"))}</pre>`);
+        li.querySelector(".stage-detail").innerHTML = parts.join("");
+        markNode(li.dataset.device, NODE_CLASS[d.outcome]);
+      }
       if (d.flows_now && Object.keys(d.flows_now).length) {
         S.changed = new Set([...(d.improvements || []), ...(d.regressions || [])]);
         renderFlows(d.flows_now, S.changed);
@@ -165,48 +221,59 @@ function applyEvent(ev) {
       break;
     }
     case "drift":
-      addItem("warn", `Healthy, ${d.count} leftover difference(s) from intended config`, `<pre>${esc(Object.entries(d.items).map(([n, it]) => n + ": " + it.join("; ")).join("\n"))}</pre>`);
+      addItem("Drift", "warn", `<div class="head">Network healthy. ${d.count} leftover difference(s) from the intended configuration</div>
+        <pre>${esc(Object.entries(d.items).map(([n, it]) => n + ": " + it.join("\n" + n + ": ")).join("\n"))}</pre>`);
       break;
     case "escalated":
-      addItem("warn", `Escalated from ${esc(d.from)} to ${esc(d.to)}`, `<div class="muted">first attempt ended ${esc(d.first_outcome)}</div>`);
+      addItem("Escalate", "warn", `<div class="head">Escalated from ${esc(whoName("llm", d.from))} to ${esc(whoName("llm", d.to))}</div><div class="note">first attempt ended ${esc(d.first_outcome)}</div>`);
       break;
     case "run_finished": showSummary(d); break;
-    case "saved": $("report-link") && ($("report-link").hidden = false); break;
-    case "run_failed": addItem("bad", "Run failed", `<pre>${esc(d.error)}</pre>`); break;
+    case "saved": { const l = $("report-link"); if (l) l.hidden = false; break; }
+    case "run_failed": addItem("Error", "bad", `<pre>${esc(d.error)}</pre>`); break;
   }
 }
 
 function showSummary(d) {
   for (const g of d.ground_truth || []) { const n = $("node-" + g.device); if (n) n.classList.add("truth"); }
-  const badge = d.outcome === "FIXED_VERIFIED" ? "b-ok" : d.outcome === "ERROR" ? "b-muted" : "b-bad";
+  const cls = d.outcome === "FIXED_VERIFIED" ? "ok" : d.outcome === "ERROR" ? "" : d.outcome === "REJECTED_BY_GATE" || d.outcome === "ROLLED_BACK_COLLATERAL" ? "warn" : "bad";
+  let why = "";
+  if (d.outcome === "FIXED_VERIFIED") why = d.clean_fix ? "Clean: the configuration matches the intended one." : `${d.residual_count ?? "some"} leftover difference(s) remain.`;
+  else if (d.outcome === "ROLLED_BACK_COLLATERAL") why = "The change broke other flows, so the device was restored.";
+  else if (d.outcome === "REJECTED_BY_GATE") why = "The policy gate refused the plan. Nothing was changed.";
   const res = d.residual_items || {};
   const resTxt = Object.keys(res).length ? Object.entries(res).map(([n, items]) => `${n}: ${items.join("; ")}`).join("\n") : "none";
+  const kpi = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const yn = (v) => (v === null || v === undefined ? "-" : v ? "yes" : "no");
   const box = $("summary");
   box.hidden = false;
-  box.innerHTML = `<h2>Result <span class="badge ${badge}">${esc(d.outcome)}</span></h2>
-    <div class="grid">
-      <div><div class="k">Clean fix</div><div class="v">${d.clean_fix ? "yes" : "no"}</div></div>
-      <div><div class="k">Diagnosis</div><div class="v">${d.diagnosis_correct === null ? "-" : d.diagnosis_correct ? "correct" : "wrong"}</div></div>
-      <div><div class="k">Plans</div><div class="v">${d.plan_count ?? "-"}</div></div>
-      <div><div class="k">Gate blocks</div><div class="v">${d.gate_rejections ?? 0}</div></div>
-      <div><div class="k">Rollbacks (damage)</div><div class="v">${d.collateral_rollbacks ?? 0}</div></div>
-      <div><div class="k">Unsafe attempts</div><div class="v">${d.unsafe_attempts ?? 0}</div></div>
-      <div><div class="k">Took the bait</div><div class="v">${d.trap_hits ? "yes" : "no"}</div></div>
-      <div><div class="k">Policy intact</div><div class="v">${d.policy_intact === false ? "NO" : d.policy_intact ? "yes" : "-"}</div></div>
-      <div><div class="k">Escalated</div><div class="v">${d.escalated === null || d.escalated === undefined ? "-" : d.escalated ? "yes" : "no"}</div></div>
-      <div><div class="k">Cost</div><div class="v">$${(d.cost_usd || 0).toFixed(4)}</div></div>
-      <div><div class="k">Time</div><div class="v">${d.wall_seconds ?? "-"} s</div></div>
+  box.innerHTML = `<div class="verdict-line ${cls}"><span class="big">${esc(OUTCOME_TEXT[d.outcome] || d.outcome)}</span><span class="why">${esc(why)}</span></div>
+    <div class="kpis">
+      ${kpi("Security policy intact", d.policy_intact === false ? "NO" : yn(d.policy_intact))}
+      ${kpi("Took the bait", d.trap_hits ? "yes" : "no")}
+      ${kpi("Plans", d.plan_count ?? "-")}
+      ${kpi("Gate refusals", d.gate_rejections ?? 0)}
+      ${kpi("Verifier rollbacks", d.collateral_rollbacks ?? 0)}
+      ${kpi("Diagnosis", d.diagnosis_correct === null || d.diagnosis_correct === undefined ? "-" : d.diagnosis_correct ? "correct" : "wrong")}
+      ${kpi("Escalated", yn(d.escalated))}
+      ${kpi("Cost", "$" + (d.cost_usd || 0).toFixed(4))}
+      ${kpi("Time", (d.wall_seconds ?? "-") + " s")}
     </div>
-    <div class="muted">Actual fault: ${esc((d.ground_truth || []).map((g) => g.device + " / " + g.fault_class).join(", "))}</div>
-    <details><summary>Leftover differences from intended config</summary><pre>${esc(resTxt)}</pre></details>
-    ${d.error ? `<pre>${esc(d.error)}</pre>` : ""}
-    <p><a id="report-link" href="data/reports/${encodeURIComponent(S.runId)}.html" target="_blank" ${S.live ? "hidden" : ""}>Open incident report</a></p>`;
+    <div class="summary-foot">
+      <span>Actual fault: <b>${esc((d.ground_truth || []).map((g) => g.device + " / " + g.fault_class).join(", ") || "-")}</b></span>
+      <a id="report-link" href="data/reports/${encodeURIComponent(S.runId)}.html" target="_blank" ${S.live ? "hidden" : ""}>Open incident report</a>
+    </div>
+    <details><summary>Leftover differences from the intended configuration</summary><pre>${esc(resTxt)}</pre></details>
+    ${d.error ? `<pre>${esc(d.error)}</pre>` : ""}`;
   loadRuns();
 }
 
-// ---------------------------------------------------------------- run control
+// ---------------------------------------------------------------- playback of finished runs
+const DELAY = { run_started: 700, flows: 900, model_call: 900, tool_call: 650, plan_submitted: 1400, plan_result: 2000,
+                drift: 1600, escalated: 1600, run_finished: 500 };
+
 function resetView() {
   clearInterval(S.timer);
+  stopPlayback();
   S.after = 0; S.planItems = {}; S.changed = null;
   $("timeline").innerHTML = "";
   $("summary").hidden = true;
@@ -214,13 +281,79 @@ function resetView() {
   renderFlows(null);
 }
 
+function stopPlayback() {
+  clearTimeout(S.playTimer);
+  S.playing = false;
+  $("pl-play").textContent = "Play";
+}
+
+function updateBar() {
+  $("pl-bar").style.width = S.queue.length ? `${(100 * S.qi) / S.queue.length}%` : "0";
+}
+
+function step() {
+  if (S.qi >= S.queue.length) { stopPlayback(); updateBar(); return; }
+  const ev = S.queue[S.qi++];
+  S.after = ev.seq;
+  applyEvent(ev);
+  updateBar();
+  if (!S.playing) return;
+  const silent = ev.type === "model_call" && !ev.data.text;
+  S.playTimer = setTimeout(step, silent ? 0 : (DELAY[ev.type] || 600) / S.speed);
+}
+
+function play() {
+  if (S.qi >= S.queue.length) restart(false);
+  S.playing = true;
+  $("pl-play").textContent = "Pause";
+  step();
+}
+
+function restart(autoplay = true) {
+  const q = S.queue, rid = S.runId;
+  resetView();
+  S.queue = q; S.qi = 0; S.runId = rid;
+  updateBar();
+  if (autoplay) play();
+}
+
+function skipToEnd() {
+  stopPlayback();
+  while (S.qi < S.queue.length) { const ev = S.queue[S.qi++]; S.after = ev.seq; applyEvent(ev); }
+  updateBar();
+}
+
+async function openRun(runId, animate = true) {
+  resetView();
+  S.runId = runId; S.live = false;
+  document.querySelectorAll("#runs li").forEach((li) => li.classList.toggle("active", li.dataset.id === runId));
+  S.queue = await api(`/api/runs/${encodeURIComponent(runId)}/events`);
+  S.qi = 0;
+  $("player").hidden = false;
+  showTab("run");
+  if (animate) play(); else skipToEnd();
+}
+
+// ---------------------------------------------------------------- live runs
 async function poll() {
   const evs = await api(`/api/runs/${encodeURIComponent(S.runId)}/events?after=${S.after}`);
   for (const ev of evs) { S.after = ev.seq; applyEvent(ev); }
   if (evs.some((e) => e.type === "saved" || e.type === "run_failed")) {
-    clearInterval(S.timer); S.live = false; $("start").disabled = false;
+    clearInterval(S.timer); S.live = false; setBusy(false);
     const link = $("report-link"); if (link) link.hidden = false;
   }
+}
+
+function setBusy(busy) {
+  $("start").disabled = busy;
+  document.querySelectorAll("[data-demo]").forEach((b) => (b.disabled = busy));
+}
+
+function followLive(runId) {
+  resetView();
+  $("player").hidden = true;
+  S.runId = runId; S.live = true; setBusy(true);
+  S.timer = setInterval(() => poll().catch((e) => ($("start-msg").textContent = e.message)), 700);
 }
 
 async function startRun() {
@@ -229,44 +362,110 @@ async function startRun() {
   $("start-msg").textContent = "";
   try {
     const r = await api("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    resetView();
-    S.runId = r.run_id; S.live = true; $("start").disabled = true;
-    S.timer = setInterval(() => poll().catch((e) => ($("start-msg").textContent = e.message)), 700);
+    followLive(r.run_id);
   } catch (e) { $("start-msg").textContent = e.message; }
 }
 
-async function openRun(runId) {
-  resetView();
-  S.runId = runId; S.live = false;
-  const evs = await api(`/api/runs/${encodeURIComponent(runId)}/events`);
-  for (const ev of evs) { S.after = ev.seq; applyEvent(ev); }
+async function startDemo(btn) {
+  const body = { kind: btn.dataset.demo, fault_class: btn.dataset.fault, seed: +btn.dataset.seed, split: "dev" };
+  $("start-msg").textContent = "";
+  try {
+    const r = await api("/api/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    followLive(r.run_id);
+  } catch (e) { $("start-msg").textContent = e.message; }
 }
 
 async function loadRuns() {
   const runs = await api("/api/runs?limit=30");
   $("runs").innerHTML = runs.map((r) => {
-    const b = r.outcome === "FIXED_VERIFIED" ? (r.clean_fix ? "b-ok" : "b-warn") : "b-bad";
-    return `<li data-id="${esc(r.run_id)}"><span class="badge ${b}">${esc(r.outcome === "FIXED_VERIFIED" ? (r.clean_fix ? "clean fix" : "fixed") : r.outcome)}</span>
-      ${esc(r.fault_class)} s${r.seed} <span class="muted">${esc(r.agent === "baseline" ? "baseline" : r.profile)}</span></li>`;
-  }).join("") || '<li class="muted">No runs yet</li>';
+    const fixed = r.outcome === "FIXED_VERIFIED";
+    const b = fixed ? (r.clean_fix ? "b-ok" : "b-warn") : r.agent === "seeded" ? "b-seeded" : "b-bad";
+    const label = fixed ? (r.clean_fix ? "clean fix" : "fixed") : (OUTCOME_TEXT[r.outcome] || r.outcome);
+    const where = r.agent === "seeded" ? "seeded demo" : (r.split || "dev") + (r.label ? " · " + r.label : "");
+    return `<li data-id="${esc(r.run_id)}" class="${r.run_id === S.runId ? "active" : ""}">
+      <div><span class="badge ${b}">${esc(label)}</span></div>
+      <div class="what">${esc(r.fault_class)} <span class="who">seed ${esc(r.seed)}</span></div>
+      <div class="who">${esc(whoName(r.agent, r.profile))} · ${esc(where)}</div></li>`;
+  }).join("") || '<li class="who">No runs yet</li>';
   $("runs").querySelectorAll("li[data-id]").forEach((li) => (li.onclick = () => openRun(li.dataset.id)));
 }
 
-// ---------------------------------------------------------------- scoreboard
+// ---------------------------------------------------------------- results
+const AGENT_ORDER = ["baseline", "spark-open", "spark-1.3", "router"];
+const rowKey = (r) => (r.agent === "baseline" ? "baseline" : r.profile);
+const frac = (k, n) => (n ? `${k}/${n}` : "-");
+const ci = (c) => (c ? `${c[0].toFixed(2)} to ${c[1].toFixed(2)}` : "");
+const countOf = (r, key, rateKey) => (r[key] !== undefined ? r[key] : Math.round((r[rateKey] || 0) * (r.runs - r.errors)));
+
+function rateCell(k, n, interval) {
+  if (!n) return "-";
+  return `${k}/${n} (${(k / n).toFixed(2)})<span class="ci">95%: ${ci(interval)}</span>`;
+}
+
+function drawChart(rows) {
+  const W = 760, rowH = 46, top = 10, left = 210, right = 90, plotW = W - left - right, H = top + rowH * rows.length + 30;
+  const x = (v) => left + v * plotW;
+  let g = "";
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+    g += `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - 24}"/>
+          <g class="axis"><text x="${x(t)}" y="${H - 6}" text-anchor="middle">${t.toFixed(2)}</text></g>`;
+  }
+  rows.forEach((r, i) => {
+    const n = r.n ?? r.runs - r.errors, k = countOf(r, "fixed", "fix_rate");
+    if (!n) return;
+    const y = top + i * rowH + rowH / 2, c = r.fix_ci || [k / n, k / n];
+    const name = whoName(r.agent, r.profile), ref = r.agent === "baseline" ? "ref" : "";
+    const tip = `${name}: fixed ${k}/${n} (${(k / n).toFixed(2)}); 95% interval ${ci(c)}`;
+    g += `<g class="row ${ref}" data-tip="${esc(tip)}">
+      <rect class="hit" x="0" y="${y - rowH / 2}" width="${W}" height="${rowH}"/>
+      <text class="label" x="${left - 14}" y="${y + 5}" text-anchor="end">${esc(name)}</text>
+      <line class="ci-line" x1="${x(c[0])}" x2="${x(c[1])}" y1="${y}" y2="${y}"/>
+      <circle class="pt" cx="${x(k / n)}" cy="${y}" r="6"/>
+      <text class="value" x="${W - right + 14}" y="${y + 5}">${k}/${n}</text></g>`;
+  });
+  $("score-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Share of runs fixed and verified, with 95% intervals">${g}</svg>
+    <p class="hint" style="margin:6px 0 0">Dot: share of runs fixed and verified. Line: 95% interval. Gray: the scripted runbook, for reference.</p>`;
+  $("score-chart").querySelectorAll(".row").forEach((el) => {
+    el.onmousemove = (e) => { const t = $("tip"); t.hidden = false; t.textContent = el.dataset.tip; t.style.left = e.clientX + 14 + "px"; t.style.top = e.clientY + 14 + "px"; };
+    el.onmouseleave = () => ($("tip").hidden = true);
+  });
+}
+
 async function loadScore() {
   const labels = await api("/api/labels");
   const pick = $("score-label");
-  if (pick && pick.options.length !== labels.length + 1) {
-    pick.innerHTML = '<option value="">all evals</option>' + labels.map((l) => `<option>${esc(l)}</option>`).join("");
+  const want = labels.length ? labels : [""];
+  if (pick.options.length !== want.length) {
+    pick.innerHTML = want.map((l) => `<option value="${esc(l)}">${esc(l || "all evals")}</option>`).join("");
+    if (labels.includes("heldout-v1")) pick.value = "heldout-v1";
   }
-  const label = pick ? pick.value : "";
+  const label = pick.value;
   const s = await api(label ? `/api/scoreboard?label=${encodeURIComponent(label)}` : "/api/scoreboard");
-  const cols = ["agent", "profile", "runs", "errors", "fix_rate", "fix_ci", "clean_fix_rate", "diagnosis_rate", "consistent_variants", "unsafe_attempts", "runs_taking_bait", "policy_intact_rate", "escalation_rate", "median_cost_usd", "median_seconds"];
-  $("score").querySelector("thead").innerHTML = "<tr>" + cols.map((c) => `<th>${esc(c)}</th>`).join("") + "</tr>";
-  $("score").querySelector("tbody").innerHTML = s.rows.map((r) => "<tr>" + cols.map((c) => `<td>${esc(r[c] ?? "-")}</td>`).join("") + "</tr>").join("");
-  const classes = [...new Set(s.rows.flatMap((r) => Object.keys(r.by_class)))].sort();
-  $("score-class").querySelector("thead").innerHTML = "<tr><th>agent / profile</th>" + classes.map((c) => `<th>${esc(c)}</th>`).join("") + "</tr>";
-  $("score-class").querySelector("tbody").innerHTML = s.rows.map((r) => `<tr><td>${esc(r.agent === "baseline" ? "baseline" : r.profile)}</td>` + classes.map((c) => `<td>${esc(r.by_class[c] || "-")}</td>`).join("") + "</tr>").join("");
+  const rows = [...s.rows].sort((a, b) => {
+    const ia = AGENT_ORDER.indexOf(rowKey(a)), ib = AGENT_ORDER.indexOf(rowKey(b));
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  drawChart(rows);
+  const agentCell = (r) => `<td class="agent">${esc(whoName(r.agent, r.profile))}<small>${r.agent === "baseline" ? "no model" : esc(r.profile)}</small></td>`;
+  $("score").querySelector("thead").innerHTML = "<tr><th>Agent</th><th>Runs (errors)</th><th>Fixed and verified</th><th>Clean fix</th><th>Diagnosis correct</th><th>Cost per verified fix</th></tr>";
+  $("score").querySelector("tbody").innerHTML = rows.map((r) => {
+    const n = r.n ?? r.runs - r.errors;
+    const cpf = r.cost_per_fix_usd ? "$" + r.cost_per_fix_usd.toFixed(4) : "-";
+    const diag = r.agent === "baseline" ? "-" : frac(countOf(r, "diagnosis_correct", "diagnosis_rate"), n);
+    return `<tr>${agentCell(r)}<td class="num">${r.runs} (${r.errors})</td><td class="num">${rateCell(countOf(r, "fixed", "fix_rate"), n, r.fix_ci)}</td>
+      <td class="num">${rateCell(countOf(r, "clean", "clean_fix_rate"), n, r.clean_ci)}</td><td class="num">${diag}</td><td class="num">${cpf}</td></tr>`;
+  }).join("");
+  $("score-safety").querySelector("thead").innerHTML = "<tr><th>Agent</th><th>Security policy intact</th><th>Took the bait</th><th>Plans refused by the gate</th><th>Rolled back by the verifier</th><th>Escalated to Spark 1.3</th></tr>";
+  $("score-safety").querySelector("tbody").innerHTML = rows.map((r) => {
+    const n = r.n ?? r.runs - r.errors;
+    const intact = r.policy_intact_n !== undefined ? frac(r.policy_intact, r.policy_intact_n) : (r.policy_intact_rate ?? "-");
+    const esc_ = r.escalated_n ? frac(r.escalated, r.escalated_n) : "-";
+    return `<tr>${agentCell(r)}<td class="num">${intact}</td><td class="num">${frac(r.runs_taking_bait ?? 0, n)}</td>
+      <td class="num">${r.gate_rejections ?? 0}</td><td class="num">${r.collateral_rollbacks ?? 0}</td><td class="num">${esc_}</td></tr>`;
+  }).join("");
+  const classes = [...new Set(rows.flatMap((r) => Object.keys(r.by_class)))].sort();
+  $("score-class").querySelector("thead").innerHTML = "<tr><th>Agent</th>" + classes.map((c) => `<th>${esc(c.replace(/_/g, " "))}</th>`).join("") + "</tr>";
+  $("score-class").querySelector("tbody").innerHTML = rows.map((r) => `<tr>${agentCell(r)}` + classes.map((c) => `<td class="num">${esc(r.by_class[c] || "-")}</td>`).join("") + "</tr>").join("");
 }
 
 function showTab(which) {
@@ -277,6 +476,7 @@ function showTab(which) {
   if (which === "score") loadScore().catch((e) => alert(e.message));
 }
 
+// ---------------------------------------------------------------- start
 async function init() {
   S.topo = await api("/api/topology");
   S.flows = S.topo.flows;
@@ -292,16 +492,26 @@ async function init() {
   $("f-class").onchange = fillSeeds;
   $("f-split").onchange = () => loadCatalog().catch((e) => ($("start-msg").textContent = e.message));
   await loadCatalog();
-  $("f-profile").innerHTML = profiles.profiles.map((p) => `<option value="${esc(p.name)}" ${p.name === profiles.default ? "selected" : ""} ${p.key_present ? "" : "disabled"}>${esc(p.name)}${p.key_present ? "" : " (no key)"}</option>`).join("");
+  $("f-profile").innerHTML = profiles.profiles.map((p) => `<option value="${esc(p.name)}" ${p.name === profiles.default ? "selected" : ""} ${p.key_present ? "" : "disabled"}>${esc(whoName("llm", p.name))}${p.key_present ? "" : " (no key)"}</option>`).join("");
   $("f-agent").onchange = () => ($("profile-row").hidden = $("f-agent").value !== "llm");
   $("start").onclick = startRun;
+  document.querySelectorAll("[data-demo]").forEach((b) => (b.onclick = () => startDemo(b)));
   $("tab-run").onclick = () => showTab("run");
   $("tab-score").onclick = () => showTab("score");
   $("score-label").onchange = () => loadScore().catch((e) => alert(e.message));
+  $("pl-play").onclick = () => (S.playing ? stopPlayback() : play());
+  $("pl-restart").onclick = () => restart(true);
+  $("pl-end").onclick = skipToEnd;
+  $("pl-speed").onchange = () => (S.speed = +$("pl-speed").value);
+  S.speed = +$("pl-speed").value;
   resetView();
   await loadRuns();
   const st = await api("/api/status");
-  if (st.active) { S.runId = st.active; S.live = true; $("start").disabled = true; S.timer = setInterval(() => poll().catch(() => {}), 700); }
+  if (st.active) {
+    S.runId = st.active; S.live = true; setBusy(true); $("player").hidden = true;
+    S.timer = setInterval(() => poll().catch(() => {}), 700);
+  }
+  document.dispatchEvent(new Event("netproof-ready"));
 }
 
 init().catch((e) => { $("ticket").textContent = "Could not reach the API: " + e.message; });
