@@ -184,12 +184,19 @@ def _write_json(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, indent=1, default=str), encoding="utf-8", newline="\n")
 
 
+def _label_rows(store: Store, label: str, repeats: Optional[int] = None) -> List[dict]:
+    rows = store.list_runs(limit=1_000_000, label=label)
+    return [r for r in rows if (r.get("repeat") or 0) < repeats] if repeats else rows
+
+
 def export_site(store: Store, out_dir: Path, labels: Sequence[str] = (), replay_labels: Sequence[str] = (),
-                featured: Sequence[Tuple[str, str]] = (), web_dir: Optional[Path] = None) -> dict:
+                featured: Sequence[Tuple[str, str]] = (), web_dir: Optional[Path] = None,
+                repeats: Optional[int] = None) -> dict:
     """Write a static site that replays recorded runs with the dashboard's own code.
 
     labels: scoreboards to include. replay_labels: labels whose runs get full event replays.
     featured: (run_id, title) pairs shown as buttons; their events are always included.
+    repeats: if set, labelled runs from repeat >= repeats are left out (as in results_markdown).
     """
     web = Path(web_dir or WEB_DIR)
     out = Path(out_dir)
@@ -205,7 +212,7 @@ def export_site(store: Store, out_dir: Path, labels: Sequence[str] = (), replay_
             raise ValueError(f"featured run {rid} is not in the run store")
         run_ids.append(rid)
     for label in replay_labels:
-        for r in store.list_runs(limit=1_000_000, label=label):
+        for r in _label_rows(store, label, repeats):
             if r["run_id"] not in run_ids:
                 run_ids.append(r["run_id"])
 
@@ -229,7 +236,7 @@ def export_site(store: Store, out_dir: Path, labels: Sequence[str] = (), replay_
 
     all_rows = []
     for label in labels:
-        rows = store.list_runs(limit=1_000_000, label=label)
+        rows = _label_rows(store, label, repeats)
         all_rows += rows
         _write_json(data / "scoreboard" / f"{quote(label, safe='')}.json",
                     {"label": label, "evals": store.eval_ids_for_label(label), "rows": scoreboard(rows)})

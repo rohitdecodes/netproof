@@ -343,7 +343,7 @@ def cmd_export_site(args) -> int:
     from .publish import export_site, leaks
 
     info = export_site(_store(), Path(args.out), labels=args.label or [], replay_labels=args.replay_label or [],
-                       featured=_featured(args.featured))
+                       featured=_featured(args.featured), repeats=args.repeats)
     print(f"exported {info['runs']} replayable runs, labels {info['labels']}, "
           f"{info['bytes'] / 1e6:.1f} MB -> {args.out}")
     found = leaks(Path(args.out), [str(ROOT), str(Path.home()), getpass.getuser()])
@@ -512,6 +512,7 @@ def main(argv=None) -> int:
     es.add_argument("--label", action="append", help="scoreboard to include; repeat")
     es.add_argument("--replay-label", action="append", help="label whose runs get full replays; repeat")
     es.add_argument("--featured", action="append", help="RUN_ID=Title shown as a button; repeat")
+    es.add_argument("--repeats", type=int, default=None, help="count only the first N repeats of each variant")
     es.set_defaults(fn=cmd_export_site)
     dm = sub.add_parser("demo")
     dm.add_argument("--kind", choices=["bad_fix", "gate"], required=True)

@@ -77,6 +77,15 @@ def test_export_site_writes_a_replayable_site_without_local_paths(store, tmp_pat
     assert leaks(out, ["C:/secret", "C:/Users/someone"]) == []
 
 
+def test_export_site_can_count_complete_repeats_only(store, tmp_path):
+    out = tmp_path / "site"
+    export_site(store, out, labels=["heldout-v1"], replay_labels=["heldout-v1"], repeats=1)
+    sb = json.loads((out / "data" / "scoreboard" / "heldout-v1.json").read_text())
+    llm = next(r for r in sb["rows"] if r["agent"] == "llm")
+    assert llm["runs"] == 1                                   # r2 (repeat 1) and r3 (repeat 2) left out
+    assert {r["run_id"] for r in json.loads((out / "data" / "runs.json").read_text())} == {"r1"}
+
+
 def test_unknown_featured_run_is_an_error(store, tmp_path):
     with pytest.raises(ValueError):
         export_site(store, tmp_path / "s", featured=[("nope", "x")])
