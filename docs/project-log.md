@@ -1,10 +1,14 @@
-# NetProof
+# NetProof build log
+
+> **This is the build log, not the project README.** It was the working plan and single source of truth during the hackathon and is kept for the record of how the project was built (see the change log, section 19, and the git history).
+> Numbers in it are development measurements on the dev split, not results. Published results are in [results.md](results.md); the project overview is the [README](../README.md).
+
 
 **An AI agent that repairs network faults, and is only allowed to change a network after deterministic tests show the fix works and breaks nothing else.**
 
 | Field | Value |
 |---|---|
-| Status | Phase 2 complete (29 Oct 2026), decision Go to Phase 3. Tag `v0.2-phase2`. Phase 3 next |
+| Status | Phase 4 Part A complete (31 Oct 2026): benchmarks run, results published in [results.md](results.md), README rewritten, replay site live. Part B (video, submission) next |
 | Document version | 0.1, written 27 Oct 2026 |
 | Name | "NetProof" is a working title. Not checked for trademark or domain conflicts [A] |
 | Primary goal right now | Win a top-5 placement in the Indie Developer track of the Meta Global AI Developer Hackathon (submission due 4 Nov 2026) |
@@ -638,25 +642,30 @@ If the project continues: API usage and, optionally, a small cloud VM for a host
 | 27 Oct | **Correction:** earlier note said Muse Spark rate limit was 100 requests/min | Misattributed the Contributor-tier limit | Meta pricing page: Standard 3,000 RPM, 4M TPM per team; Contributor tier lower and lets Meta use prompts | Standard tier only, throttling less constrained |
 | 27 Oct | Claim narrowed after prior-art review (NIKA, FaulT-Bench, SADE, NetArena) | Diagnosis benchmarks already exist | arXiv papers | Contribution defined as verified remediation plus collateral damage |
 | 27 Oct | Developer reported the initial feasibility spike working. Specific results not yet recorded | Developer message | None recorded yet | Record outcomes in Phase 1 notes |
-| 28 Oct | Phase 1 refinements adopted: run records as JSON files in `runs/` (SQLite moves to Phase 2); `capture_packets` tool moved to Phase 2; fourth fault class is "interface down" instead of "address misconfiguration"; commit rule is zero regressions plus strictly more flows matching intent; lab networks are plain bridges with masquerade off and `gateway_mode_ipv4: nat-unprotected`, not `internal` networks | Plan review and lab behavior on Docker Engine 29 | `docs/phase1-plan.md`, `docs/phase1-notes.md` | Architecture details in sections 7 and 9 are superseded where they differ |
-| 28 Oct | Development runs on native Windows Python plus Docker Desktop, not inside a WSL Ubuntu distro | No Ubuntu distro installed; Docker Desktop works from Windows directly | `docs/phase1-notes.md` (Environment) | Docker stdin sent as bytes to avoid CRLF; all lab code unchanged otherwise |
+| 28 Oct | Phase 1 refinements adopted: run records as JSON files in `runs/` (SQLite moves to Phase 2); `capture_packets` tool moved to Phase 2; fourth fault class is "interface down" instead of "address misconfiguration"; commit rule is zero regressions plus strictly more flows matching intent; lab networks are plain bridges with masquerade off and `gateway_mode_ipv4: nat-unprotected`, not `internal` networks | Plan review and lab behavior on Docker Engine 29 | phase notes (local, not published) | Architecture details in sections 7 and 9 are superseded where they differ |
+| 28 Oct | Development runs on native Windows Python plus Docker Desktop, not inside a WSL Ubuntu distro | No Ubuntu distro installed; Docker Desktop works from Windows directly | phase notes (local, not published) | Docker stdin sent as bytes to avoid CRLF; all lab code unchanged otherwise |
 | 28 Oct | Gate rule added: deleting the default route is rejected | Plan's gate allowed `ip route del default`, which section 11.1 V2 lists as dangerous | `tests/test_gate.py`, 27 dangerous / 13 safe cases | System prompt bumped to `p1.1` |
 | 28 Oct | Paid evaluation trimmed to 12 runs (each variant once) with `reasoning_effort=low`, instead of 60 runs | Limited credits. Spark 1.1 to 1.3 share one Standard price, so no cheaper allowed model exists | `runs/eval-20261028-213047-llm/summary.json` | No repeat spread yet. Repeats move to the Phase 3 held-out benchmark |
-| 28 Oct | **Phase 1 decision: Go, with conditions.** V1 to V6 met: reset max 3.1 s and 20/20 injections; gate 27/27 and 13/13; bad fixes 9/9 rolled back; Muse Spark 1.3 fixed 12/12 with correct diagnosis at median $0.023 per run. The scripted baseline also fixed 20/20 | Measured | `docs/phase1-notes.md`, `docs/phase1-summary.md` | Phase 2 must add harder fault classes until the baseline is below about 80%, before any claim that the model adds value |
-| 29 Oct | Phase 2 scope: 5 new scenario classes, residual (minimality) metric, model profiles, SQLite store, Markdown reports, dashboard using polling (not WebSocket) and hand-drawn SVG (not Cytoscape) | Phase 1 condition 1, and fewer moving parts | `docs/phase_2.md` | Phase 2 in progress |
+| 28 Oct | **Phase 1 decision: Go, with conditions.** V1 to V6 met: reset max 3.1 s and 20/20 injections; gate 27/27 and 13/13; bad fixes 9/9 rolled back; Muse Spark 1.3 fixed 12/12 with correct diagnosis at median $0.023 per run. The scripted baseline also fixed 20/20 | Measured | phase notes (local, not published) | Phase 2 must add harder fault classes until the baseline is below about 80%, before any claim that the model adds value |
+| 29 Oct | Phase 2 scope: 5 new scenario classes, residual (minimality) metric, model profiles, SQLite store, Markdown reports, dashboard using polling (not WebSocket) and hand-drawn SVG (not Cytoscape) | Phase 1 condition 1, and fewer moving parts | phase notes (local, not published) | Phase 2 in progress |
 | 29 Oct | Lab hosts run with ip_forward=0; intent gains two 64 KB bulk flows (13 flows) | Wrong next-hop faults must black-hole; MTU faults need a bulk test | `lab/docker-compose.yml`, `lab/intent.yaml` | Lab containers recreated |
-| 29 Oct | Human reference timing moved from Phase 1 to Phase 2, on three of the new fault classes | Timing easy faults would only show they are easy | `docs/phase_2.md` Step 6 | Recorded in `docs/phase2-notes.md` |
-| 29 Oct | Phase 2 difficulty gate passed: scripted baseline 12/27 (0.444), 0/15 on the five new classes | Phase 1 condition 1 | `docs/phase2-notes.md`, eval-20261029-090307-baseline-difficulty | Benchmark separates model from runbook |
-| 29 Oct | Muse Spark 1.3 on the 27 dev variants: 27/27 fixed, clean fix 24/27, diagnosis 27/27, $0.886 total (dev seeds, one repeat, not for public quoting) | Phase 2 Step 10 | `docs/phase2-notes.md` | All 3 unclean fixes left half of a two-part MTU fault; Phase 3 prompt work |
+| 29 Oct | Human reference timing moved from Phase 1 to Phase 2, on three of the new fault classes | Timing easy faults would only show they are easy | phase notes (local, not published) | Recorded in phase notes (local, not published) |
+| 29 Oct | Phase 2 difficulty gate passed: scripted baseline 12/27 (0.444), 0/15 on the five new classes | Phase 1 condition 1 | phase notes (local, not published), eval-20261029-090307-baseline-difficulty | Benchmark separates model from runbook |
+| 29 Oct | Muse Spark 1.3 on the 27 dev variants: 27/27 fixed, clean fix 24/27, diagnosis 27/27, $0.886 total (dev seeds, one repeat, not for public quoting) | Phase 2 Step 10 | phase notes (local, not published) | All 3 unclean fixes left half of a two-part MTU fault; Phase 3 prompt work |
 | 29 Oct | Dashboard checked 9/9 in headless Edge; two UI bugs fixed (changed-flow highlight lost at run end, scoreboard showing under the run view) | Phase 2 Step 8 | `docs/screenshots/`, `web/` | P2-V6 passes |
 | 29 Oct | Second model: Muse Spark Open on Baseten (`meta-models/muse-spark-open-1026`): 27/27 fixed, clean fix 24/27, diagnosis 26/27, $0.425 total, median $0.0156 per run (dev seeds, not for public quoting) | Phase 2 Step 9 and 10 | `runs/` eval-20261029-171339-spark-open-p2 | Open-weights comparison covered |
 | 29 Oct | Muse Glimmer on Modal not attempted in Phase 2; human reference timing deferred | Developer decision under deadline | - | Glimmer optional in Phase 3; timing before the video |
-| 29 Oct | Phase planning docs (plans, notes, summaries) kept local: `docs/phase*.md` gitignored and untracked | Public repo holds only project files | `.gitignore` | Evidence links to those docs are local-only |
+| 29 Oct | Phase planning docs (plans, notes, summaries) kept local: gitignored and untracked | Public repo holds only project files | `.gitignore` | Evidence links to those docs are local-only |
 | 29 Oct | **Phase 2 decision: Go to Phase 3.** P2-V1 to V8 met (Glimmer recorded as excluded); baseline 12/27, Spark 1.3 and Spark Open 27/27 fixed, 24/27 clean | Developer approved | Tag `v0.2-phase2` | Phase 3: held-out benchmark with repeats, MTU clean-fix work |
 | 29 Oct | Phase 2 closed: Go. Baseline 0.444 vs both models 1.0 on 27 dev variants; Spark Open at about half the cost per run | Benchmark now separates model from runbook | docs (local) | Phase 3 builds held-out and adversarial evaluation |
 | 29 Oct | Glimmer not attempted; second model is Spark Open on Baseten (open weights) | Deadline | Phase 2 notes | Open-weights angle covered by Spark Open |
 | 30 Oct | Router renamed open-first (Spark Open, then Spark 1.3); topology-diagram input dropped | No local model; diagram input adds no measurable value before the deadline | Phase 3 plan | Simpler scope |
 | 30 Oct | Phase 3 adds held-out split (27), adversarial split (6), drift cleanup after heal, eval registry with resume | Phase 2 found a ceiling effect and no natural safety events | Phase 3 plan | Public numbers come only from held-out and adversarial runs |
+| 30 Oct | Lab fix before the freeze: routers never send ICMP redirects | A cached redirect kept a correct fix of `wrong_nexthop.h2` broken in 4 of 6 tries | Commit `3150dd8` | All verifiers pass; dev runs become deterministic |
+| 30 Oct | Prompt and engine frozen: tag `p3.0-freeze` (prompt `p3.0`). Phase 3 closed with the benchmarks deferred; tag `v0.3-phase3` | Freeze before any model sees held-out variants | Git tags | Frozen files unchanged from here |
+| 31 Oct | Benchmarks run: adversarial 3 repeats (18 runs per agent), held-out one repeat (27 per agent) for Muse Spark 1.3, Muse Spark Open and the router | Phase 4 evidence | [results.md](results.md) | Security policy intact in every adversarial run; held-out fix rates published with intervals |
+| 31 Oct | Held-out cut to one repeat per agent | Docker Desktop stopped during the first long eval; developer chose a shorter unattended run | Run store | No run-to-run consistency claim |
+| 31 Oct | Gate refusals reported as refused plans, not unsafe attempts | All 9 adversarial gate refusals were the same safe command using an option outside the allow-list (`--reject-with`) | Run records | Public wording corrected; gate unchanged (frozen) |
 
 ---
 
@@ -755,12 +764,12 @@ Secondary (treat as reported, verify before relying):
 | Phase 2 | Evaluation runner and scoreboard | Seeded runs, repeats, metrics stored, scoreboard produced for at least two models | Done: baseline, Muse Spark 1.3 and Muse Spark Open on the same 27 scenarios (one repeat; repeats in Phase 3) |
 | Phase 2 | Dashboard | Live topology, timeline, plan diff, gate verdict, verification table during a full run | Done: 9/9 checklist items |
 | Phase 2 | Incident report generator | Each run yields an evidence report | Done: 64 reports for 64 runs |
-| Phase 3 | Held-out benchmark with repeats | Numbers recorded per model with versions and dates | Not Started |
-| Phase 3 | Local-first router | Escalation logic works and share solved locally is measured | Not Started |
-| Phase 3 | Topology-diagram input (stretch) | Only if all earlier items are done and stable | Not Started |
-| Phase 3 | Reliability pass and feature freeze | `ERROR` rate acceptable, freeze announced in the change log | Not Started |
+| Phase 3 | Held-out benchmark with repeats | Numbers recorded per model with versions and dates | Done in Phase 4 (31 Oct): one repeat per agent, see results.md |
+| Phase 3 | Local-first router | Escalation logic works and share solved locally is measured | Done as open-first router; escalated 0 times in benchmark runs (escalation tested with fakes) |
+| Phase 3 | Topology-diagram input (stretch) | Only if all earlier items are done and stable | Dropped |
+| Phase 3 | Reliability pass and feature freeze | `ERROR` rate acceptable, freeze announced in the change log | Done: `p3.0-freeze`; 0 errors in counted benchmark runs |
 | Phase 4 | Three-minute demo video | Shows only hackathon-built work, includes gate block and rollback moments, ends with scoreboard | Not Started |
 | Phase 4 | Public repository and README finalized | Accessible without login, run instructions work from a clean clone, third-party dependencies listed | Not Started |
-| Phase 4 | Hosted replay | Replay link opens and shows recorded runs | Not Started |
+| Phase 4 | Hosted replay | Replay link opens and shows recorded runs | Done: https://rohitdecodes.github.io/netproof/ |
 | Phase 4 | Submission on the event platform | Submitted by the night of 3 Nov IST. Repository public, video accessible, contributors listed | Not Started |
 | Phase 4 | Posts on X and LinkedIn | Demo posted, X link submitted for the viral prize | Not Started |
