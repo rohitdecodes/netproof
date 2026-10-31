@@ -242,7 +242,8 @@ def scoreboard(rows: List[dict]) -> List[dict]:
             "escalation_rate": _rate(sum(bool(r["escalated"]) for r in esc), len(esc)),
             "median_cost_usd": round(statistics.median(costs), 4) if costs else None,
             "total_cost_usd": round(sum(costs), 4),
-            "median_seconds": statistics.median([r["wall_seconds"] or 0 for r in scored]) if scored else None,
+            "median_seconds": (round(statistics.median([r["wall_seconds"] or 0 for r in scored]), 1)
+                               if scored else None),
             "by_class": {c: f"{a}/{b}" for c, (a, b) in sorted(by_class.items())},
         })
     return out
