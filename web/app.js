@@ -125,7 +125,7 @@ function applyEvent(ev) {
   switch (ev.type) {
     case "run_started":
       $("ticket").textContent = d.ticket;
-      $("run-meta").textContent = `${d.run_id} | ${d.agent === "baseline" ? "scripted baseline" : d.profile + " (" + d.model + ")"} | reported flow: ${d.reported_flow}`;
+      $("run-meta").textContent = `${d.run_id} | ${d.agent === "baseline" ? "scripted baseline" : d.agent === "seeded" ? "seeded demonstration, no model (" + d.profile + ")" : d.profile + " (" + d.model + ")"} | reported flow: ${d.reported_flow}`;
       highlightPath(d.reported_flow);
       break;
     case "flows": {

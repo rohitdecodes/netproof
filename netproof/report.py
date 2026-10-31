@@ -23,7 +23,12 @@ def _flows_table(before: dict, after: dict) -> str:
 def render_report(rec: dict) -> str:
     sc = rec.get("scenario", {})
     gt = rec.get("ground_truth") or sc.get("ground_truth") or []
-    who = "scripted baseline" if rec.get("agent") == "baseline" else f"{rec.get('profile')} ({rec.get('model')})"
+    if rec.get("agent") == "baseline":
+        who = "scripted baseline"
+    elif rec.get("agent") == "seeded":
+        who = f"seeded demonstration, no model ({rec.get('profile')})"
+    else:
+        who = f"{rec.get('profile')} ({rec.get('model')})"
     out = [
         f"# Incident report: {rec.get('run_id')}",
         "",

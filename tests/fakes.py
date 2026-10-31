@@ -10,6 +10,7 @@ from netproof.lab import ExecResult
 GOOD_ROUTE = "ip route replace 10.10.3.0/24 via 10.10.9.2"
 OPEN_GUEST = "iptables -I FORWARD 1 -s 10.10.2.0/24 -d 10.10.3.0/24 -j ACCEPT"
 ADD_JUNK = "iptables -I FORWARD 1 -s 10.10.9.9 -j DROP"
+GUEST_TO_STAFF = "iptables -I FORWARD 1 -s 10.10.2.0/24 -d 10.10.1.0/24 -j ACCEPT"
 DEL_JUNK = "iptables -D FORWARD -s 10.10.9.9 -j DROP"
 STATE_KEYS = ("route_ok", "guest_open", "junk")
 
@@ -42,7 +43,7 @@ class FakeLab:
         self.commands.append(cmd)
         if cmd == GOOD_ROUTE:
             self.state["route_ok"] = True
-        elif cmd == OPEN_GUEST:
+        elif cmd in (OPEN_GUEST, GUEST_TO_STAFF):
             self.state["guest_open"] = True
         elif cmd == "ip route del 10.10.3.0/24":
             self.state["route_ok"] = False
