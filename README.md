@@ -85,7 +85,7 @@ The [live replay](https://rohitdecodes.github.io/netproof/) plays back recorded 
 
 ## Run it yourself
 
-Requirements: Docker Desktop (or Docker Engine), Python 3.11, and a Meta Model API key for model runs. Everything except model runs is free.
+Requirements: Docker Desktop (or Docker Engine), Python 3.11, and a Meta Model API key for model runs. Everything except model runs is free. Start Docker Desktop before these steps; `doctor` tells you what is missing. With no keys in `.env`, `doctor` shows the keys as `--` and still reports READY.
 
 ```powershell
 git clone https://github.com/rohitdecodes/netproof
@@ -98,7 +98,7 @@ docker compose -f lab/docker-compose.yml up -d
 .\.venv\Scripts\python.exe -m netproof.cli doctor           # READY
 .\.venv\Scripts\python.exe -m netproof.cli check            # 13 flows, HEALTHY
 .\.venv\Scripts\python.exe -m pytest -q                     # unit tests
-.\.venv\Scripts\python.exe -m netproof.cli run --fault acl_typo --seed 0 --agent baseline   # free
+.\.venv\Scripts\python.exe -m netproof.cli run --fault route_missing --seed 0 --agent baseline   # free; the runbook fixes this one
 .\.venv\Scripts\python.exe -m netproof.cli run --fault acl_typo --seed 0                    # uses your API key
 .\.venv\Scripts\python.exe -m netproof.cli serve            # dashboard at http://127.0.0.1:8000
 ```
