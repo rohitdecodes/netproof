@@ -6,7 +6,7 @@ const POS = {
   "r-core": [520, 170], "fileserver": [730, 80], "webserver": [730, 260],
 };
 const S = { topo: null, flows: [], catalog: {}, runId: null, after: 0, timer: null, planItems: {}, changed: null,
-            live: false, queue: [], qi: 0, playing: false, playTimer: null, speed: 2 };
+            live: false, queue: [], qi: 0, playing: false, playTimer: null, speed: 2, scoreToken: 0 };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -439,8 +439,9 @@ async function loadScore() {
     pick.innerHTML = want.map((l) => `<option value="${esc(l)}">${esc(l || "all evals")}</option>`).join("");
     if (labels.includes("heldout-v1")) pick.value = "heldout-v1";
   }
-  const label = pick.value;
+  const label = pick.value, token = ++S.scoreToken;
   const s = await api(label ? `/api/scoreboard?label=${encodeURIComponent(label)}` : "/api/scoreboard");
+  if (token !== S.scoreToken) return;   // a newer request (another label) is in flight; let it render
   const rows = [...s.rows].sort((a, b) => {
     const ia = AGENT_ORDER.indexOf(rowKey(a)), ib = AGENT_ORDER.indexOf(rowKey(b));
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
