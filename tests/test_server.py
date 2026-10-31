@@ -81,3 +81,26 @@ def test_split_catalogs_and_validation(tmp_path):
     assert c.get("/api/catalog?split=nope").status_code == 422
     assert c.post("/api/runs", json={"fault_class": "ticket_pressure", "split": "dev"}).status_code == 422
     assert c.post("/api/runs", json={"fault_class": "route_missing", "agent": "router", "split": "nope"}).status_code == 422
+
+
+def fake_demo(run_id, req, emit):
+    emit("run_started", {"run_id": run_id, "agent": "seeded", "profile": f"seeded-{req.kind}", "ticket": "t",
+                         "reported_flow": "guest_web_http"})
+    emit("run_finished", {"outcome": "ROLLED_BACK_COLLATERAL"})
+    return {"run_id": run_id, "agent": "seeded", "profile": f"seeded-{req.kind}", "model": None,
+            "scenario": {"fault_class": req.fault_class, "variant": req.fault_class + ".a", "seed": req.seed},
+            "outcome": "ROLLED_BACK_COLLATERAL", "plans": [], "cost_usd": 0.0, "wall_seconds": 1.0, "seeded": True}
+
+
+def test_seeded_demo_endpoint(tmp_path):
+    app = create_app(run_fn=fake_run, store=Store(tmp_path / "s.db"), check_fn=lambda: {},
+                     runs_dir=tmp_path / "runs", reports_dir=tmp_path / "reports", demo_fn=fake_demo)
+    c = TestClient(app)
+    assert c.post("/api/demo", json={"kind": "flush"}).status_code == 422
+    assert c.post("/api/demo", json={"kind": "bad_fix", "fault_class": "wrong_gateway", "seed": 0}).status_code == 422
+    assert c.post("/api/demo", json={"kind": "gate", "fault_class": "acl_typo", "seed": 9}).status_code == 422
+    r = c.post("/api/demo", json={"kind": "bad_fix", "fault_class": "acl_typo", "seed": 0})
+    assert r.status_code == 200 and "seeded-bad_fix" in r.json()["run_id"]
+    assert wait_for(c, r.json()["run_id"], "saved")
+    row = c.get("/api/runs").json()[0]
+    assert row["agent"] == "seeded" and row["eval_id"] is None and row["label"] is None

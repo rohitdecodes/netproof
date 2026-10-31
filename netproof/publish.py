@@ -21,6 +21,10 @@ from .topology import load_topology
 
 WEB_DIR = ROOT / "web"
 Repeats = Union[None, int, Dict[str, int]]   # one limit for every label, or a limit per label
+# What the published results count. heldout-v1 was run for one complete repeat; the partial second
+# repeat of one eval (stopped when Docker Desktop failed) is left out everywhere: results.md, the
+# replay site and the local dashboard's scoreboard.
+PUBLISHED_REPEATS: Dict[str, int] = {"heldout-v1": 1}
 PRIVATE_COLUMNS = ("record_path", "report_path")
 
 
@@ -207,14 +211,17 @@ def events_from_record(rec: dict) -> List[dict]:
 # ---------------------------------------------------------------- static replay site
 REPLAY_CSS = """
 /* replay mode (hosted site) */
-.replay-banner { margin: 12px 14px 0; padding: 10px 14px; border: 1px solid var(--accent); border-radius: 8px;
-  background: var(--panel); }
-.replay-banner p { margin: 0 0 6px; }
-.replay-banner button.featured { margin: 6px 8px 0 0; padding: 6px 10px; border: 1px solid var(--line);
-  background: var(--bg); color: var(--text); border-radius: 6px; cursor: pointer; font: inherit; }
-body.replay #view-run > aside:first-child > h2:first-of-type,
-body.replay #view-run > aside:first-child > label,
-body.replay #start, body.replay #start-msg { display: none; }
+.replay-banner { margin: 16px 22px 0; padding: 14px 18px; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: 12px; background: var(--panel); }
+.replay-banner p { margin: 0 0 10px; color: var(--text-2); font-size: 14px; }
+.replay-banner p strong { color: var(--text); }
+.featured-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.replay-banner button.featured { display: grid; gap: 3px; text-align: left; padding: 10px 12px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text); border-radius: 9px; cursor: pointer; font: inherit; }
+.replay-banner button.featured:hover, .replay-banner button.featured.active { border-color: var(--accent); background: var(--accent-soft); }
+.replay-banner button.featured b { font-size: 14px; }
+.replay-banner button.featured span { color: var(--muted); font-size: 12px; }
+body.replay #start-panel, body.replay #demo-panel { display: none; }
 """
 
 REPORT_HTML = """<!doctype html>
@@ -228,14 +235,29 @@ pre {{ white-space: pre-wrap; word-break: break-word; max-width: 980px; margin: 
 """
 
 
-def _banner(featured: List[Tuple[str, str]]) -> str:
-    buttons = "".join(f'<button class="featured" data-run="{html.escape(rid)}">{html.escape(title)}</button>'
-                      for rid, title in featured)
+def _banner(featured: List[tuple]) -> str:
+    """featured: (run_id, title) or (run_id, title, subtitle) tuples, shown as buttons."""
+    buttons = "".join(
+        f'<button class="featured" data-run="{html.escape(f[0])}"><b>{html.escape(f[1])}</b>'
+        + (f"<span>{html.escape(f[2])}</span>" if len(f) > 2 and f[2] else "") + "</button>"
+        for f in featured)
     return ('<div class="replay-banner"><p><strong>Read-only replay of recorded NetProof runs.</strong> '
             "Nothing here calls a model or touches a network; clone the repository to run the lab yourself. "
             "Benchmark runs did not record a live event stream, so their timelines are rebuilt from the saved "
             "run records: the same model text, tool calls, outputs, plans and verdicts, in order. "
-            "Pick a featured run, any run on the left, or the Scoreboard tab.</p>" + buttons + "</div>")
+            "Pick a featured run, any run on the left, or the Results tab.</p>"
+            f'<div class="featured-row">{buttons}</div></div>')
+
+
+PROFILE_NAMES = {"spark-1.3": "Muse Spark 1.3", "spark-open": "Muse Spark Open", "router": "Open-first router"}
+
+
+def _featured_subtitle(row: dict) -> str:
+    if row.get("agent") == "seeded":
+        return "Seeded demonstration, no model"
+    who = ("Scripted runbook" if row.get("agent") == "baseline"
+           else PROFILE_NAMES.get(row.get("profile"), row.get("profile")))
+    return f"{who} · real run" + (f" · {row['label']}" if row.get("label") else "")
 
 
 def _transform_index(src: str, featured: List[Tuple[str, str]]) -> str:
@@ -348,8 +370,9 @@ def export_site(store: Store, out_dir: Path, labels: Sequence[str] = (), replay_
                                          "profiles": [{"name": k, "model": v["model"], "key_present": False}
                                                       for k, v in prof.get("profiles", {}).items()]})
 
-    (out / "index.html").write_text(_transform_index((web / "index.html").read_text(encoding="utf-8"),
-                                                     list(featured)), encoding="utf-8", newline="\n")
+    shown = [(rid, title, _featured_subtitle(store.get_run(rid) or {})) for rid, title in featured]
+    (out / "index.html").write_text(_transform_index((web / "index.html").read_text(encoding="utf-8"), shown),
+                                    encoding="utf-8", newline="\n")
     (out / "app.js").write_text(_transform_app((web / "app.js").read_text(encoding="utf-8")),
                                 encoding="utf-8", newline="\n")
     (out / "style.css").write_text((web / "style.css").read_text(encoding="utf-8") + REPLAY_CSS,

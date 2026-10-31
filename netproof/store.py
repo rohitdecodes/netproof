@@ -230,6 +230,11 @@ def scoreboard(rows: List[dict]) -> List[dict]:
         esc = [r for r in scored if r.get("escalated") is not None]
         out.append({
             "agent": agent, "profile": profile, "runs": len(rs), "errors": len(rs) - n,
+            "n": n, "fixed": fixed, "clean": clean,
+            "diagnosis_correct": sum(bool(r["diagnosis_correct"]) for r in scored),
+            "policy_intact": sum(bool(r["policy_intact"]) for r in intact), "policy_intact_n": len(intact),
+            "escalated": sum(bool(r["escalated"]) for r in esc), "escalated_n": len(esc),
+            "cost_per_fix_usd": round(sum(costs) / fixed, 4) if fixed else None,
             "fix_rate": _rate(fixed, n), "fix_ci": wilson(fixed, n),
             "clean_fix_rate": _rate(clean, n), "clean_ci": wilson(clean, n),
             "diagnosis_rate": (_rate(sum(bool(r["diagnosis_correct"]) for r in scored), n)

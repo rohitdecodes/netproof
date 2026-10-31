@@ -26,6 +26,13 @@ from .topology import load_topology
 WEB_DIR = ROOT / "web"
 
 
+class DemoRequest(BaseModel):
+    kind: str                      # "bad_fix" or "gate" (see demo.SEEDED_KINDS)
+    fault_class: str = "acl_typo"
+    seed: int = 0
+    split: str = "dev"
+
+
 class RunRequest(BaseModel):
     fault_class: str
     seed: int = 0
@@ -42,6 +49,15 @@ def default_run_fn(run_id: str, req: RunRequest, emit: Callable[[str, dict], Non
                         profile=req.profile, emit=emit, run_id=run_id, split=req.split)
 
 
+def default_demo_fn(run_id: str, req: DemoRequest, emit: Callable[[str, dict], None]) -> dict:
+    from .demo import run_seeded
+    from .lab import DockerLab
+
+    topo = load_topology()
+    return run_seeded(DockerLab(topo), topo, load_intent(), req.fault_class, req.seed, req.kind,
+                      split=req.split, emit=emit, run_id=run_id)
+
+
 def default_check_fn() -> dict:
     from .intent import evaluate
     from .lab import DockerLab
@@ -51,20 +67,21 @@ def default_check_fn() -> dict:
 
 def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
                check_fn: Optional[Callable] = None, runs_dir: Optional[Path] = None,
-               reports_dir: Optional[Path] = None) -> FastAPI:
+               reports_dir: Optional[Path] = None, demo_fn: Optional[Callable] = None) -> FastAPI:
     app = FastAPI(title="NetProof")
     store = store or Store()
     run_fn = run_fn or default_run_fn
     check_fn = check_fn or default_check_fn
+    demo_fn = demo_fn or default_demo_fn
     lock = threading.Lock()
     state = {"active": None}
     topo = load_topology()
     flows = load_intent()
 
-    def worker(run_id: str, req: RunRequest) -> None:
+    def worker(run_id: str, req, fn: Optional[Callable] = None) -> None:
         emit = store.emitter(run_id)
         try:
-            rec = run_fn(run_id, req, emit)
+            rec = (fn or run_fn)(run_id, req, emit)
             rec["run_id"] = run_id
             path = write_record(rec, base=runs_dir)
             report = write_report(rec, folder=reports_dir)
@@ -126,6 +143,28 @@ def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
         threading.Thread(target=worker, args=(run_id, req), daemon=True).start()
         return {"run_id": run_id}
 
+    @app.post("/api/demo")
+    def start_demo(req: DemoRequest):
+        """Seeded safety demonstration: a fixed unsafe plan is submitted directly, no model involved."""
+        from .demo import SEEDED_KINDS, demo_run_id
+
+        if req.kind not in SEEDED_KINDS:
+            raise HTTPException(422, f"kind must be one of {list(SEEDED_KINDS)}")
+        if req.split not in SPLITS or req.fault_class not in SPLITS[req.split]:
+            raise HTTPException(422, f"unknown fault class {req.fault_class!r} in split {req.split}")
+        variants = SPLITS[req.split][req.fault_class]
+        if not 0 <= req.seed < len(variants):
+            raise HTTPException(422, f"seed must be 0 to {len(variants) - 1}")
+        if req.kind == "bad_fix" and not variants[req.seed].bad_fix:
+            raise HTTPException(422, f"{variants[req.seed].key} has no seeded bad fix")
+        with lock:
+            if state["active"]:
+                raise HTTPException(409, f"run {state['active']} is still in progress")
+            run_id = demo_run_id(req.kind, req.fault_class, req.seed, req.split)
+            state["active"] = run_id
+        threading.Thread(target=worker, args=(run_id, req, demo_fn), daemon=True).start()
+        return {"run_id": run_id}
+
     @app.get("/api/runs")
     def runs(limit: int = 30):
         return store.list_runs(limit=limit)
@@ -159,7 +198,11 @@ def create_app(run_fn: Optional[Callable] = None, store: Optional[Store] = None,
     @app.get("/api/scoreboard")
     def scoreboard(eval: Optional[List[str]] = Query(default=None), label: Optional[str] = None):
         if label:
-            return {"label": label, "evals": store.eval_ids_for_label(label), "rows": store.scoreboard(label=label)}
+            from .publish import PUBLISHED_REPEATS, _label_rows
+            from .store import scoreboard as score_rows
+
+            rows = score_rows(_label_rows(store, label, PUBLISHED_REPEATS))
+            return {"label": label, "evals": store.eval_ids_for_label(label), "rows": rows}
         ids = eval or [e["eval_id"] for e in store.evals()]
         return {"evals": ids, "rows": store.scoreboard(ids)}
 

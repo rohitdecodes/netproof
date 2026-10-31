@@ -311,8 +311,12 @@ def cmd_report(args) -> int:
 
 
 def _repeats(specs: Optional[List[str]]):
-    """--repeats N (every label) or --repeats LABEL=N (per label, repeatable)."""
+    """--repeats N (every label), LABEL=N (per label, repeatable) or all; default: publish.PUBLISHED_REPEATS."""
     if not specs:
+        from .publish import PUBLISHED_REPEATS
+
+        return dict(PUBLISHED_REPEATS)
+    if specs == ["all"]:
         return None
     if len(specs) == 1 and "=" not in specs[0]:
         return int(specs[0])
@@ -521,7 +525,7 @@ def main(argv=None) -> int:
     rs.add_argument("--label", action="append", required=True, help="label to tabulate; repeat for several")
     rs.add_argument("--out", default=None, help="write Markdown here (e.g. docs/results.md)")
     rs.add_argument("--repeats", action="append", default=None,
-                    help="count only the first N repeats of each variant: N for every label, or LABEL=N for one label; repeat for several")
+                    help="count only the first N repeats: N, LABEL=N (repeatable) or all; default is what the published results count")
     rs.set_defaults(fn=cmd_results)
     es = sub.add_parser("export-site")
     es.add_argument("--out", default="site")
@@ -529,7 +533,7 @@ def main(argv=None) -> int:
     es.add_argument("--replay-label", action="append", help="label whose runs get full replays; repeat")
     es.add_argument("--featured", action="append", help="RUN_ID=Title shown as a button; repeat")
     es.add_argument("--repeats", action="append", default=None,
-                    help="count only the first N repeats of each variant: N for every label, or LABEL=N for one label; repeat for several")
+                    help="count only the first N repeats: N, LABEL=N (repeatable) or all; default is what the published results count")
     es.set_defaults(fn=cmd_export_site)
     dm = sub.add_parser("demo")
     dm.add_argument("--kind", choices=["bad_fix", "gate"], required=True)
