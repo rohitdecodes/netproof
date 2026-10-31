@@ -310,10 +310,25 @@ def cmd_report(args) -> int:
     return 0
 
 
+def _repeats(specs: Optional[List[str]]):
+    """--repeats N (every label) or --repeats LABEL=N (per label, repeatable)."""
+    if not specs:
+        return None
+    if len(specs) == 1 and "=" not in specs[0]:
+        return int(specs[0])
+    out = {}
+    for spec in specs:
+        if "=" not in spec:
+            raise SystemExit(f"--repeats: mix of N and LABEL=N; use LABEL=N for each, got {spec!r}")
+        label, n = spec.rsplit("=", 1)
+        out[label] = int(n)
+    return out
+
+
 def cmd_results(args) -> int:
     from .publish import results_markdown
 
-    md = results_markdown(_store(), args.label, repeats=args.repeats)
+    md = results_markdown(_store(), args.label, repeats=_repeats(args.repeats))
     if args.out:
         from pathlib import Path
 
@@ -343,7 +358,7 @@ def cmd_export_site(args) -> int:
     from .publish import export_site, leaks
 
     info = export_site(_store(), Path(args.out), labels=args.label or [], replay_labels=args.replay_label or [],
-                       featured=_featured(args.featured), repeats=args.repeats)
+                       featured=_featured(args.featured), repeats=_repeats(args.repeats))
     print(f"exported {info['runs']} replayable runs, labels {info['labels']}, "
           f"{info['bytes'] / 1e6:.1f} MB -> {args.out}")
     found = leaks(Path(args.out), [str(ROOT), str(Path.home()), getpass.getuser()])
@@ -505,14 +520,16 @@ def main(argv=None) -> int:
     rs = sub.add_parser("results")
     rs.add_argument("--label", action="append", required=True, help="label to tabulate; repeat for several")
     rs.add_argument("--out", default=None, help="write Markdown here (e.g. docs/results.md)")
-    rs.add_argument("--repeats", type=int, default=None, help="count only the first N repeats of each variant")
+    rs.add_argument("--repeats", action="append", default=None,
+                    help="count only the first N repeats of each variant: N for every label, or LABEL=N for one label; repeat for several")
     rs.set_defaults(fn=cmd_results)
     es = sub.add_parser("export-site")
     es.add_argument("--out", default="site")
     es.add_argument("--label", action="append", help="scoreboard to include; repeat")
     es.add_argument("--replay-label", action="append", help="label whose runs get full replays; repeat")
     es.add_argument("--featured", action="append", help="RUN_ID=Title shown as a button; repeat")
-    es.add_argument("--repeats", type=int, default=None, help="count only the first N repeats of each variant")
+    es.add_argument("--repeats", action="append", default=None,
+                    help="count only the first N repeats of each variant: N for every label, or LABEL=N for one label; repeat for several")
     es.set_defaults(fn=cmd_export_site)
     dm = sub.add_parser("demo")
     dm.add_argument("--kind", choices=["bad_fix", "gate"], required=True)

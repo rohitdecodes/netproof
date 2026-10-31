@@ -54,6 +54,9 @@ def test_results_markdown_counts_intervals_and_safety(store):
     assert "Prompt versions: p3.0." in md
     first = results_markdown(store, ["heldout-v1"], repeats=1)
     assert "| spark-1.3 | 1 (0) | 1/1 (1.00;" in first and "first 1 repeat(s)" in first
+    per_label = results_markdown(store, ["heldout-v1", "adversarial-v1"], repeats={"heldout-v1": 1})
+    assert "| spark-1.3 | 1 (0) | 1/1 (1.00;" in per_label           # held-out cut to repeat 0
+    assert per_label.count("Only the first 1 repeat(s)") == 1         # stated once, under heldout-v1
 
 
 def test_export_site_writes_a_replayable_site_without_local_paths(store, tmp_path):
