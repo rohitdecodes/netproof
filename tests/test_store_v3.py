@@ -49,7 +49,7 @@ def test_eval_registry_and_resume_keys(tmp_path):
     done = st.done_keys("e1")
     assert done == {("acl_typo", 0, 0)}
     todo = pending_jobs(["acl_typo"], [0, 1], 2, done)
-    assert todo == [("acl_typo", 0, 1), ("acl_typo", 1, 0), ("acl_typo", 1, 1)]
+    assert todo == [("acl_typo", 1, 0), ("acl_typo", 0, 1), ("acl_typo", 1, 1)]   # repeat-major
     assert st.eval_ids_for_label("heldout-v1") == ["e1"] and st.labels() == ["heldout-v1"]
 
 

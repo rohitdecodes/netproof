@@ -192,8 +192,10 @@ class Store:
 
 
 def pending_jobs(classes: List[str], seeds: List[int], repeats: int, done) -> List[tuple]:
-    """Every (class, seed, repeat) in an eval that has not completed without ERROR."""
-    return [(c, s, r) for c in classes for s in seeds for r in range(repeats) if (c, s, r) not in done]
+    """Every (class, seed, repeat) in an eval that has not completed without ERROR.
+    Repeat-major order: the whole set once, then again, so stopping at a repeat boundary
+    leaves complete repeats behind."""
+    return [(c, s, r) for r in range(repeats) for c in classes for s in seeds if (c, s, r) not in done]
 
 
 def _b(v) -> Optional[int]:
