@@ -310,6 +310,69 @@ def cmd_report(args) -> int:
     return 0
 
 
+def cmd_results(args) -> int:
+    from .publish import results_markdown
+
+    md = results_markdown(_store(), args.label, repeats=args.repeats)
+    if args.out:
+        from pathlib import Path
+
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(md, encoding="utf-8", newline="\n")
+        print(f"wrote {args.out}")
+    else:
+        print(md)
+    return 0
+
+
+def _featured(specs: List[str]) -> List[tuple]:
+    out = []
+    for spec in specs or []:
+        if "=" not in spec:
+            raise SystemExit(f"--featured needs RUN_ID=Title, got {spec!r}")
+        rid, title = spec.split("=", 1)
+        out.append((rid.strip(), title.strip()))
+    return out
+
+
+def cmd_export_site(args) -> int:
+    import getpass
+    from pathlib import Path
+
+    from .config import ROOT
+    from .publish import export_site, leaks
+
+    info = export_site(_store(), Path(args.out), labels=args.label or [], replay_labels=args.replay_label or [],
+                       featured=_featured(args.featured))
+    print(f"exported {info['runs']} replayable runs, labels {info['labels']}, "
+          f"{info['bytes'] / 1e6:.1f} MB -> {args.out}")
+    found = leaks(Path(args.out), [str(ROOT), str(Path.home()), getpass.getuser()])
+    if found:
+        print("LOCAL DETAILS FOUND IN THE SITE (do not publish):")
+        for f in found[:20]:
+            print("  " + f)
+        return 1
+    return 0
+
+
+def cmd_demo(args) -> int:
+    from .demo import demo_run_id, run_seeded
+
+    topo, lab, flows = _lab()
+    store = _store()
+    run_id = demo_run_id(args.kind, args.fault, args.seed, args.split)
+    rec = run_seeded(lab, topo, flows, args.fault, args.seed, args.kind, split=args.split,
+                     emit=store.emitter(run_id), run_id=run_id)
+    _finish(rec, store)
+    print(f"seeded {args.kind}: outcome={rec['outcome']} policy_intact={rec['policy_intact']} run={run_id}")
+    if rec["plans"][0]["result"].get("gate_violations"):
+        print("gate:", rec["plans"][0]["result"]["gate_violations"])
+    if rec["plans"][0]["result"].get("regressions"):
+        print("regressions:", rec["plans"][0]["result"]["regressions"],
+              "restored:", rec["plans"][0]["result"].get("restored_ok"))
+    return 0
+
+
 def cmd_serve(args) -> int:
     import uvicorn
 
@@ -439,6 +502,23 @@ def main(argv=None) -> int:
     sv.add_argument("--host", default="127.0.0.1")
     sv.add_argument("--port", type=int, default=8000)
     sv.set_defaults(fn=cmd_serve)
+    rs = sub.add_parser("results")
+    rs.add_argument("--label", action="append", required=True, help="label to tabulate; repeat for several")
+    rs.add_argument("--out", default=None, help="write Markdown here (e.g. docs/results.md)")
+    rs.add_argument("--repeats", type=int, default=None, help="count only the first N repeats of each variant")
+    rs.set_defaults(fn=cmd_results)
+    es = sub.add_parser("export-site")
+    es.add_argument("--out", default="site")
+    es.add_argument("--label", action="append", help="scoreboard to include; repeat")
+    es.add_argument("--replay-label", action="append", help="label whose runs get full replays; repeat")
+    es.add_argument("--featured", action="append", help="RUN_ID=Title shown as a button; repeat")
+    es.set_defaults(fn=cmd_export_site)
+    dm = sub.add_parser("demo")
+    dm.add_argument("--kind", choices=["bad_fix", "gate"], required=True)
+    dm.add_argument("--fault", required=True)
+    dm.add_argument("--seed", type=int, default=0)
+    dm.add_argument("--split", default="dev", choices=splits)
+    dm.set_defaults(fn=cmd_demo)
     vl = sub.add_parser("validate-lab")
     vl.add_argument("--n", type=int, default=27)
     vl.add_argument("--split", default="dev", choices=splits)
