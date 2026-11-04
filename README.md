@@ -6,9 +6,12 @@ Built solo for the Meta Global AI Developer Hackathon (Indie track, theme: Push 
 
 | | |
 | --- | --- |
+| **Demo video (2:51)** | https://youtu.be/XjunlU6rk0c |
 | **Live replay** | https://rohitdecodes.github.io/netproof/ (recorded runs in the real dashboard; nothing to install) |
 | **Results** | [docs/results.md](docs/results.md), generated from the run store |
 | **Incident reports** | [docs/examples](docs/examples/README.md), one per featured run |
+
+[![NetProof demo video (2:51): click to watch on YouTube](https://img.youtube.com/vi/XjunlU6rk0c/maxresdefault.jpg)](https://youtu.be/XjunlU6rk0c)
 
 ![The verifier rolls back a model's change that opened a forbidden flow](docs/screenshots/replay-verifier-rollback.png)
 
